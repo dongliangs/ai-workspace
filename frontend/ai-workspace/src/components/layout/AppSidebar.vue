@@ -6,9 +6,25 @@
         <!-- Logo -->
         <div class="flex items-center gap-2 mb-5">
           <div class="logo-mark w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L19.5 7V17L12 22L4.5 17V7L12 2Z" fill="white" fill-opacity="0.95" />
-              <path d="M12 7V17M8 10V17M16 10V17" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 2L19.5 7V17L12 22L4.5 17V7L12 2Z"
+                fill="white"
+                fill-opacity="0.95"
+              />
+              <path
+                d="M12 7V17M8 10V17M16 10V17"
+                stroke="#3b82f6"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             </svg>
           </div>
           <span class="font-semibold text-[15px] text-foreground truncate">AI WorkSpace</span>
@@ -24,7 +40,10 @@
             :class="{ 'nav-active': route.path === item.path }"
             @click.prevent="onNavClick(item)"
           >
-            <component :is="item.icon" class="w-[18px] h-[18px]" />
+            <component
+              :is="item.icon"
+              class="w-[18px] h-[18px]"
+            />
             <span class="truncate">{{ item.label }}</span>
           </a>
         </nav>
@@ -38,7 +57,7 @@
             <div class="flex items-center justify-between px-2 mb-2">
               <span class="text-xs font-medium text-muted">对话记录</span>
             </div>
-            <div class="chat-history-scroll">
+            <el-scrollbar class="chat-history-scroll" @end-reached="loadMore">
               <a
                 v-for="s in chatStore.sessions"
                 :key="s.id"
@@ -50,22 +69,26 @@
                 <MessageSquare class="w-4 h-4 shrink-0" />
                 <span class="truncate">{{ s.title }}</span>
               </a>
-            </div>
+            </el-scrollbar>
           </div>
         </template>
       </div>
       <!-- 用户信息：固定在底部 -->
-        <div class="pt-3 footer-side border-t border-border flex-none">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium shrink-0">
-              {{ userInfo.user?.nickname.substring(0, 1) || '' }}
+      <div class="pt-3 footer-side border-t border-border flex-none">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium shrink-0">
+            {{ userInfo.user?.nickname.substring(0, 1) || '' }}
+          </div>
+          <div class="min-w-0">
+            <div class="text-sm font-medium text-foreground truncate">
+              {{ userInfo.user?.nickname || '' }}
             </div>
-            <div class="min-w-0">
-              <div class="text-sm font-medium text-foreground truncate">{{ userInfo.user?.nickname || '' }}</div>
-              <div class="text-xs text-muted truncate">{{ userInfo.user?.email || '--@--' }}</div>
+            <div class="text-xs text-muted truncate">
+              {{ userInfo.user?.email || '--@--' }}
             </div>
           </div>
         </div>
+      </div>
     </div>
   </aside>
 </template>
@@ -78,7 +101,6 @@ import {
   BookOpen,
   Bot,
   Workflow,
-  Settings,
 } from 'lucide-vue-next'
 import { computed, type Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -105,14 +127,15 @@ const router = useRouter()
 const route = useRoute()
 const userInfo = useAuthStore()
 const chatStore = useChatStore()
-
+import type { ScrollbarDirection } from 'element-plus'
 // 是否在 AI Chat 页面：控制"对话记录"区域的显隐
 const isChatPage = computed(() => route.path === '/chat')
 
 function onNavClick(item: NavItem) {
-  // "新聊天"导航项：点击即创建新会话（即便是在 /chat 页也会重置）
+  // "新聊天"导航项：点击进入 /chat 并重置为未选中会话态（欢迎态），
+  // 用户在 chat 页面发送首条消息时会自动创建会话（避免空会话占位）。
   if (item.path === '/chat') {
-    chatStore.createSession()
+    chatStore.selectSession(null)
   }
   router.push(item.path)
 }
@@ -120,6 +143,12 @@ function onNavClick(item: NavItem) {
 /** 选中某个对话会话 */
 function onSelectSession(id: number) {
   chatStore.selectSession(id)
+}
+
+const loadMore = (direction: ScrollbarDirection) => {
+  if (direction === 'bottom') {
+    // todo
+  }
 }
 </script>
 

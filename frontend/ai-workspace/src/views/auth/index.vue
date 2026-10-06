@@ -22,16 +22,30 @@
       </nav>
 
       <!-- Login form -->
-      <div v-if="mode === 'login'" class="form-section">
+      <div
+        v-if="mode === 'login'"
+        class="form-section"
+      >
         <header class="form-head">
-          <h2 class="form-title">欢迎回来</h2>
-          <p class="form-subtitle">请登录以继续 AI 工作台</p>
+          <h2 class="form-title">
+            欢迎回来
+          </h2>
+          <p class="form-subtitle">
+            请登录以继续 AI 工作台
+          </p>
         </header>
 
-        <form class="auth-form" novalidate @submit.prevent="handleLogin">
+        <form
+          class="auth-form"
+          novalidate
+          @submit.prevent="handleLogin"
+        >
           <div class="field">
             <div class="field-control">
-              <Mail class="field-icon" :size="18" />
+              <Mail
+                class="field-icon"
+                :size="18"
+              />
               <input
                 v-model="loginForm.email"
                 type="email"
@@ -39,13 +53,16 @@
                 placeholder="请输入邮箱"
                 autocomplete="email"
                 @focus="clearFieldError"
-              />
+              >
             </div>
           </div>
 
           <div class="field">
             <div class="field-control">
-              <Lock class="field-icon" :size="18" />
+              <Lock
+                class="field-icon"
+                :size="18"
+              />
               <input
                 v-model="loginForm.password"
                 :type="showLoginPwd ? 'text' : 'password'"
@@ -53,52 +70,97 @@
                 placeholder="请输入密码"
                 autocomplete="current-password"
                 @focus="clearFieldError"
-              />
+              >
               <button
                 type="button"
                 class="pwd-toggle"
                 :aria-label="showLoginPwd ? '隐藏密码' : '显示密码'"
                 @click="showLoginPwd = !showLoginPwd"
               >
-                <Eye v-if="showLoginPwd" :size="18" />
-                <EyeOff v-else :size="18" />
+                <Eye
+                  v-if="showLoginPwd"
+                  :size="18"
+                />
+                <EyeOff
+                  v-else
+                  :size="18"
+                />
               </button>
             </div>
           </div>
 
           <div class="form-row">
             <label class="remember">
-              <input v-model="loginForm.remember" type="checkbox" class="remember-check" />
+              <input
+                v-model="loginForm.remember"
+                type="checkbox"
+                class="remember-check"
+              >
               <span class="remember-label">记住我</span>
             </label>
-            <a href="#" class="link-muted" @click.prevent="onForgotPassword">忘记密码?</a>
+            <a
+              href="#"
+              class="link-muted"
+              @click.prevent="onForgotPassword"
+            >忘记密码?</a>
           </div>
 
-          <p v-if="authStore.error" class="form-error">{{ authStore.error }}</p>
+          <p
+            v-if="authStore.error"
+            class="form-error"
+          >
+            {{ authStore.error }}
+          </p>
 
-          <button type="submit" class="btn-primary" :disabled="authStore.loading">
-            <Loader2 v-if="authStore.loading" class="spin" :size="18" />
+          <button
+            type="submit"
+            class="btn-primary"
+            :disabled="authStore.loading"
+          >
+            <Loader2
+              v-if="authStore.loading"
+              class="spin"
+              :size="18"
+            />
             <span>{{ authStore.loading ? '登录中…' : '登录' }}</span>
           </button>
 
           <p class="switch-cta">
             还没有账号?
-            <a href="#" class="link-accent" @click.prevent="switchMode('register')">立即注册</a>
+            <a
+              href="#"
+              class="link-accent"
+              @click.prevent="switchMode('register')"
+            >立即注册</a>
           </p>
         </form>
       </div>
 
       <!-- Register form -->
-      <div v-else class="form-section">
+      <div
+        v-else
+        class="form-section"
+      >
         <header class="form-head">
-          <h2 class="form-title">创建账号</h2>
-          <p class="form-subtitle">填写信息以开始使用 AI 工作台</p>
+          <h2 class="form-title">
+            创建账号
+          </h2>
+          <p class="form-subtitle">
+            填写信息以开始使用 AI 工作台
+          </p>
         </header>
 
-        <form class="auth-form" novalidate @submit.prevent="handleRegister">
+        <form
+          class="auth-form"
+          novalidate
+          @submit.prevent="handleRegister"
+        >
           <div class="field">
             <div class="field-control">
-              <Mail class="field-icon" :size="18" />
+              <Mail
+                class="field-icon"
+                :size="18"
+              />
               <input
                 v-model="registerForm.email"
                 type="email"
@@ -106,13 +168,16 @@
                 placeholder="请输入邮箱"
                 autocomplete="email"
                 @focus="clearFieldError"
-              />
+              >
             </div>
           </div>
           <!-- 设置昵称 -->
           <div class="field">
             <div class="field-control">
-              <User class="field-icon" :size="18" />
+              <User
+                class="field-icon"
+                :size="18"
+              />
               <input
                 v-model="registerForm.nickname"
                 type="nickname"
@@ -120,12 +185,15 @@
                 placeholder="请设置一个昵称"
                 autocomplete="nickname"
                 @focus="clearFieldError"
-              />
+              >
             </div>
           </div>
           <div class="field">
             <div class="field-control">
-              <Lock class="field-icon" :size="18" />
+              <Lock
+                class="field-icon"
+                :size="18"
+              />
               <input
                 v-model="registerForm.password"
                 :type="showRegPwd ? 'text' : 'password'"
@@ -133,22 +201,31 @@
                 placeholder="请输入密码"
                 autocomplete="new-password"
                 @focus="clearFieldError"
-              />
+              >
               <button
                 type="button"
                 class="pwd-toggle"
                 :aria-label="showRegPwd ? '隐藏密码' : '显示密码'"
                 @click="showRegPwd = !showRegPwd"
               >
-                <Eye v-if="showRegPwd" :size="18" />
-                <EyeOff v-else :size="18" />
+                <Eye
+                  v-if="showRegPwd"
+                  :size="18"
+                />
+                <EyeOff
+                  v-else
+                  :size="18"
+                />
               </button>
             </div>
           </div>
 
           <div class="field">
             <div class="field-control">
-              <Lock class="field-icon" :size="18" />
+              <Lock
+                class="field-icon"
+                :size="18"
+              />
               <input
                 v-model="registerForm.confirm"
                 :type="showRegConfirm ? 'text' : 'password'"
@@ -156,29 +233,52 @@
                 placeholder="请再次输入密码"
                 autocomplete="new-password"
                 @focus="clearFieldError"
-              />
+              >
               <button
                 type="button"
                 class="pwd-toggle"
                 :aria-label="showRegConfirm ? '隐藏密码' : '显示密码'"
                 @click="showRegConfirm = !showRegConfirm"
               >
-                <Eye v-if="showRegConfirm" :size="18" />
-                <EyeOff v-else :size="18" />
+                <Eye
+                  v-if="showRegConfirm"
+                  :size="18"
+                />
+                <EyeOff
+                  v-else
+                  :size="18"
+                />
               </button>
             </div>
           </div>
 
-          <p v-if="authStore.error" class="form-error">{{ authStore.error }}</p>
+          <p
+            v-if="authStore.error"
+            class="form-error"
+          >
+            {{ authStore.error }}
+          </p>
 
-          <button type="submit" class="btn-primary" :disabled="authStore.loading">
-            <Loader2 v-if="authStore.loading" class="spin" :size="18" />
+          <button
+            type="submit"
+            class="btn-primary"
+            :disabled="authStore.loading"
+          >
+            <Loader2
+              v-if="authStore.loading"
+              class="spin"
+              :size="18"
+            />
             <span>{{ authStore.loading ? '注册中…' : '注册' }}</span>
           </button>
 
           <p class="switch-cta">
             已有账号?
-            <a href="#" class="link-accent" @click.prevent="switchMode('login')">立即登录</a>
+            <a
+              href="#"
+              class="link-accent"
+              @click.prevent="switchMode('login')"
+            >立即登录</a>
           </p>
         </form>
       </div>

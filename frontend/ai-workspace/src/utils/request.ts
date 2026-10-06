@@ -185,7 +185,7 @@ service.interceptors.response.use(
     // 干净的业务数据。这是 axios 社区常见的"拆包"做法，用 as unknown as AxiosResponse
     // 让类型对齐，最终在 request<T> 里再 as Promise<T> 收口。
     if (res.code === SUCCESS_CODE) {
-	  ElMessage.success(res.message || '请求成功')
+	  // ElMessage.success(res.message || '请求成功')
       return res.data as unknown as AxiosResponse
     }
 

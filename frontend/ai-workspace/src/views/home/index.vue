@@ -90,8 +90,18 @@ function goAuth() {
           <span class="brand-name">AI WorkSpace</span>
         </div>
         <nav class="header-actions">
-          <button class="btn-text" @click="goAuth">登录</button>
-          <button class="btn-primary-sm" @click="goAuth">注册</button>
+          <button
+            class="btn-text"
+            @click="goAuth"
+          >
+            登录
+          </button>
+          <button
+            class="btn-primary-sm"
+            @click="goAuth"
+          >
+            注册
+          </button>
         </nav>
       </div>
     </header>
@@ -106,18 +116,23 @@ function goAuth() {
               <Sparkles :size="14" />
               AI 驱动的智能工作台
             </span>
-            <h1 class="hero-title">让 AI 真正帮你完成工作</h1>
+            <h1 class="hero-title">
+              让 AI 真正帮你完成工作
+            </h1>
             <p class="hero-features">
               文档分析 · 数据处理 · 知识问答 · 任务执行 · 智能创作
             </p>
           </div>
           <!-- 装饰插图：半透明文档卡片 + 星花 -->
-          <div class="hero-illustration" aria-hidden="true">
+          <div
+            class="hero-illustration"
+            aria-hidden="true"
+          >
             <div class="doc-card">
-              <div class="doc-line doc-line--1"></div>
-              <div class="doc-line doc-line--2"></div>
-              <div class="doc-line doc-line--3"></div>
-              <div class="doc-line doc-line--4"></div>
+              <div class="doc-line doc-line--1" />
+              <div class="doc-line doc-line--2" />
+              <div class="doc-line doc-line--3" />
+              <div class="doc-line doc-line--4" />
             </div>
             <span class="spark"><Sparkles :size="22" /></span>
           </div>
@@ -126,18 +141,27 @@ function goAuth() {
         <!-- 输入栏 -->
         <section class="prompt-bar">
           <div class="prompt-input">
-            <PenLine class="prompt-icon-left" :size="20" />
+            <PenLine
+              class="prompt-icon-left"
+              :size="20"
+            />
             <input
               v-model="prompt"
               type="text"
               class="prompt-field"
               placeholder="告诉 AI 你想完成什么..."
               @keydown.enter="handleExecute"
-            />
-            <button class="prompt-attach" aria-label="添加附件">
+            >
+            <button
+              class="prompt-attach"
+              aria-label="添加附件"
+            >
               <Paperclip :size="20" />
             </button>
-            <button class="btn-execute" @click="handleExecute">
+            <button
+              class="btn-execute"
+              @click="handleExecute"
+            >
               <Play :size="16" />
               开始执行
             </button>
@@ -147,10 +171,14 @@ function goAuth() {
         <!-- 快速开始 -->
         <section class="quick-section">
           <div class="section-head">
-            <span class="section-accent"></span>
+            <span class="section-accent" />
             <div>
-              <h2 class="section-title">快速开始</h2>
-              <p class="section-subtitle">选择你需要的功能，开启 AI 助手</p>
+              <h2 class="section-title">
+                快速开始
+              </h2>
+              <p class="section-subtitle">
+                选择你需要的功能，开启 AI 助手
+              </p>
             </div>
           </div>
 
@@ -161,11 +189,21 @@ function goAuth() {
               class="quick-card"
               @click="handleExecute"
             >
-              <div class="quick-icon" :style="{ background: card.iconBg, color: card.iconColor }">
-                <component :is="card.icon" :size="22" />
+              <div
+                class="quick-icon"
+                :style="{ background: card.iconBg, color: card.iconColor }"
+              >
+                <component
+                  :is="card.icon"
+                  :size="22"
+                />
               </div>
-              <h3 class="quick-card-title">{{ card.title }}</h3>
-              <p class="quick-card-desc">{{ card.desc }}</p>
+              <h3 class="quick-card-title">
+                {{ card.title }}
+              </h3>
+              <p class="quick-card-desc">
+                {{ card.desc }}
+              </p>
               <span class="quick-card-cta">
                 <ArrowRight :size="16" />
               </span>

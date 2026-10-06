@@ -1,14 +1,24 @@
 <template>
   <div class="chat-page">
     <!-- 主体：欢迎态 / 对话态，可滚动 -->
-    <div ref="bodyRef" class="chat-body">
+    <div
+      ref="bodyRef"
+      class="chat-body"
+    >
       <!-- 欢迎态 -->
-      <div v-if="!messages.length" class="welcome-wrap">
+      <div
+        v-if="!messages.length"
+        class="welcome-wrap"
+      >
         <div class="welcome-logo">
           <RobotMark :size="32" />
         </div>
-        <h2 class="welcome-title">你好！我是你的 AI 助手</h2>
-        <p class="welcome-sub">你可以向我提问，或让我帮你完成各类任务</p>
+        <h2 class="welcome-title">
+          你好！我是你的 AI 助手
+        </h2>
+        <p class="welcome-sub">
+          你可以向我提问，或让我帮你完成各类任务
+        </p>
 
         <div class="suggestion-grid">
           <button
@@ -18,19 +28,32 @@
             class="suggestion-card"
             @click="onSuggestion(item)"
           >
-            <div class="suggestion-icon" :style="tintStyle(item.tint)">
-              <component :is="item.icon" class="w-4 h-4" />
+            <div
+              class="suggestion-icon"
+              :style="tintStyle(item.tint)"
+            >
+              <component
+                :is="item.icon"
+                class="w-4 h-4"
+              />
             </div>
             <div class="min-w-0 text-left">
-              <div class="suggestion-title truncate">{{ item.title }}</div>
-              <div class="suggestion-desc line-clamp-2">{{ item.desc }}</div>
+              <div class="suggestion-title truncate">
+                {{ item.title }}
+              </div>
+              <div class="suggestion-desc line-clamp-2">
+                {{ item.desc }}
+              </div>
             </div>
           </button>
         </div>
       </div>
 
       <!-- 对话态 -->
-      <div v-else class="conversation">
+      <div
+        v-else
+        class="conversation"
+      >
         <div
           v-for="m in messages"
           :key="m.id"
@@ -38,25 +61,43 @@
           :class="m.role"
         >
           <!-- 头像 -->
-          <div v-if="m.role === 'assistant'" class="avatar avatar-ai">
+          <div
+            v-if="m.role === 'assistant'"
+            class="avatar avatar-ai"
+          >
             <RobotMark :size="18" />
           </div>
-          <div v-else class="avatar avatar-user">
+          <div
+            v-else
+            class="avatar avatar-user"
+          >
             {{ userInitial }}
           </div>
 
           <!-- 气泡 + 时间 + 操作 -->
           <div class="msg-main">
-            <div class="bubble" :class="m.role">
+            <div
+              class="bubble"
+              :class="m.role"
+            >
               <!-- 思考中：内容为空且 pending -->
-              <span v-if="m.pending && !m.content" class="typing-dots">
-                <i></i><i></i><i></i>
+              <span
+                v-if="m.pending && !m.content"
+                class="typing-dots"
+              >
+                <i /><i /><i />
               </span>
-              <span v-else class="bubble-text">{{ m.content }}</span>
+              <span
+                v-else
+                class="bubble-text"
+              >{{ m.content }}</span>
             </div>
             <div class="msg-meta">
               <span class="msg-time">{{ m.time }}</span>
-              <div v-if="!m.pending" class="msg-actions">
+              <div
+                v-if="!m.pending"
+                class="msg-actions"
+              >
                 <button
                   type="button"
                   class="action-btn"
@@ -84,12 +125,23 @@
     <!-- 输入栏 -->
     <div class="chat-input-bar">
       <!-- 附件 chip -->
-      <div v-if="attachments.length" class="attach-chips">
-        <span v-for="a in attachments" :key="a.id" class="attach-chip">
+      <div
+        v-if="attachments.length"
+        class="attach-chips"
+      >
+        <span
+          v-for="a in attachments"
+          :key="a.id"
+          class="attach-chip"
+        >
           <Paperclip class="w-3 h-3 shrink-0" />
           <span class="attach-name truncate">{{ a.name }}</span>
           <span class="attach-size">{{ a.size }}</span>
-          <button type="button" class="attach-remove" @click="removeAttachment(a.id)">
+          <button
+            type="button"
+            class="attach-remove"
+            @click="removeAttachment(a.id)"
+          >
             <X class="w-3 h-3" />
           </button>
         </span>
@@ -103,7 +155,7 @@
           placeholder="输入你的问题，或上传文件..."
           :disabled="loading"
           @keyup.enter="onEnter"
-        />
+        >
         <div class="input-actions">
           <button
             type="button"
@@ -120,12 +172,20 @@
             :disabled="!loading && !input.trim()"
             @click="onSendClick"
           >
-            <Square v-if="loading" class="w-4 h-4" />
-            <ArrowUp v-else class="w-4 h-4" />
+            <Square
+              v-if="loading"
+              class="w-4 h-4"
+            />
+            <ArrowUp
+              v-else
+              class="w-4 h-4"
+            />
           </button>
         </div>
       </div>
-      <p class="disclaimer">AI 生成内容仅供参考</p>
+      <p class="disclaimer">
+        AI 生成内容仅供参考
+      </p>
 
       <input
         ref="fileInput"
@@ -133,7 +193,7 @@
         multiple
         hidden
         @change="onFileChange"
-      />
+      >
     </div>
   </div>
 </template>
@@ -158,7 +218,8 @@ import {
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
-import { sendMessageStream } from '@/api/conversation'
+import { sendMessageStream, getMessages, getConversation } from '@/api/conversation'
+import type { ChatMessageDTO } from '@/api/conversation'
 
 /* ------------------------------------------------------------------ */
 /*  RobotMark：欢迎态 logo 与 AI 头像复用的机器人 SVG                 */
@@ -230,30 +291,96 @@ let abortCtrl: AbortController | null = null
 
 /**
  * 监听当前会话切换：从 sidebar 点击不同对话记录时触发。
- * 新会话直接清空消息显示欢迎态；
- * 已有会话当前 V0.1 暂不加载历史消息（GET /conversations/{id}/messages 未在本次联调范围）。
+ * - currentId 为 null：清空消息，显示欢迎态
+ * - currentId 有值且为新建会话（justCreated）：跳过历史加载，让 onSend 继续发送
+ *   （新会话本就没有历史，若强行加载会拿到空数组覆盖掉刚 push 的消息）
+ * - currentId 有值且为已有会话：调 GET /conversations/{id} + /messages 加载历史消息
  */
 watch(
   () => chatStore.currentId,
-  () => {
+  (id) => {
+    if (id == null) {
+      messages.value = []
+      attachments.value = []
+      input.value = ''
+      return
+    }
+    // 新建会话：不加载历史（避免空数组覆盖 onSend 刚 push 的消息），消费掉标记
+    if (chatStore.justCreated) {
+      chatStore.justCreated = false
+      return
+    }
+    // 切换到已有会话：清空当前消息并加载历史
     messages.value = []
     attachments.value = []
     input.value = ''
+    loadConversation(id)
   },
 )
 
 /**
- * 页面挂载后：如果 store 里有 pendingPrompt（从 workspace 跳转过来），
- * 立即消费它作为首条消息发送，实现"工作台提问 → 跳转 chat → 自动开始对话"。
+ * 页面挂载后：
+ * 1. 如果 store 里有 pendingPrompt（从 workspace 跳转过来），消费它作为首条消息发送
+ * 2. 否则如果已有 currentId（从 sidebar 直接点进会话），加载该会话的信息与历史消息
  */
 onMounted(() => {
   const pending = chatStore.pendingPrompt
   if (pending) {
     chatStore.pendingPrompt = null // 消费后清空，避免重复触发
-    // currentId 已在 workspace createSession 时设好，直接发送
     onSend(pending)
+  } else if (chatStore.currentId != null) {
+    loadConversation(chatStore.currentId)
   }
 })
+
+/**
+ * 进入会话时加载：调 GET /conversations/{id} 刷新会话元信息，
+ * 再调 GET /conversations/{id}/messages 加载历史消息。
+ */
+async function loadConversation(conversationId: number) {
+  try {
+    // 刷新会话元信息（标题等），同步到 store 的 sessions 列表，保证 sidebar 显示一致
+    const conv = await getConversation(conversationId)
+    const idx = chatStore.sessions.findIndex((s) => s.id === conv.id)
+    if (idx !== -1) {
+      chatStore.sessions[idx] = conv
+    } else {
+      chatStore.sessions.unshift(conv)
+    }
+  } catch {
+    // 会话信息加载失败不阻塞消息加载，拦截器已弹错
+  }
+
+  await loadMessages(conversationId)
+}
+
+/**
+ * 加载会话历史消息（GET /conversations/{id}/messages）。
+ * 后端按 created_at ASC 返回，直接映射为前端 ChatMessage 渲染。
+ */
+async function loadMessages(conversationId: number) {
+  try {
+    const list = await getMessages(conversationId)
+    messages.value = (list ?? []).map((m: ChatMessageDTO) => ({
+      id: m.id,
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+      time: formatTime(m.created_at),
+    }))
+    scrollToBottom()
+  } catch {
+    // 请求失败时拦截器已弹错，消息列表保持空（欢迎态）
+  }
+}
+
+/** 把后端 ISO 时间字符串格式化为 HH:mm 显示 */
+function formatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
 
 const bodyRef = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -410,14 +537,6 @@ async function onRegenerate(m: ChatMessage) {
 
   messages.value.splice(idx)
   await runReply(conversationId, userText)
-}
-
-function onNewChat() {
-  if (loading.value) {
-    cancelled.value = true
-  }
-  // 委托给 chat store，watch(currentId) 会清空本地消息
-  chatStore.createSession('新对话')
 }
 
 async function onCopy(m: ChatMessage) {

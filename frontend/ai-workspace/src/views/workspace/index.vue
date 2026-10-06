@@ -4,9 +4,18 @@
     <section class="banner mb-6 p-5">
       <div class="flex flex-row items-center gap-6">
         <div class="flex-1 min-w-0 w-full">
-          <h1 class="welcome-title mb-2" style="text-wrap: balance">欢迎回来，小明 👋</h1>
-          <p class="welcome-tagline pt-2">让 AI 真正帮你完成工作</p>
-          <p class="text-xs text-muted py-4">有什么新的想法任务交给智能助手，让它帮你高效完成。</p>
+          <h1
+            class="welcome-title mb-2"
+            style="text-wrap: balance"
+          >
+            欢迎回来，小明 👋
+          </h1>
+          <p class="welcome-tagline pt-2">
+            让 AI 真正帮你完成工作
+          </p>
+          <p class="text-xs text-muted py-4">
+            有什么新的想法任务交给智能助手，让它帮你高效完成。
+          </p>
           <div class="relative w-full max-w-lg">
             <input
               v-model="prompt"
@@ -14,7 +23,7 @@
               placeholder="输入问题，让 AI 帮你开始创作..."
               class="prompt-input"
               @keyup.enter="onPrompt"
-            />
+            >
             <button
               type="button"
               class="prompt-btn"
@@ -26,23 +35,104 @@
           </div>
         </div>
         <div class="w-full lg:w-[280px] h-[160px] shrink-0">
-          <svg viewBox="0 0 280 160" class="w-full h-full" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+          <svg
+            viewBox="0 0 280 160"
+            class="w-full h-full"
+            preserveAspectRatio="xMidYMid meet"
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <defs>
-              <linearGradient id="ws-banner-grad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.08" />
-                <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.20" />
+              <linearGradient
+                id="ws-banner-grad"
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="1"
+              >
+                <stop
+                  offset="0%"
+                  stop-color="#3b82f6"
+                  stop-opacity="0.08"
+                />
+                <stop
+                  offset="100%"
+                  stop-color="#3b82f6"
+                  stop-opacity="0.20"
+                />
               </linearGradient>
             </defs>
-            <rect width="280" height="160" rx="12" fill="url(#ws-banner-grad)" />
-            <rect x="70" y="36" width="140" height="92" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-opacity="0.18" stroke-width="2" />
-            <rect x="82" y="50" width="116" height="64" rx="4" fill="#3b82f6" fill-opacity="0.06" />
-            <text x="140" y="90" text-anchor="middle" fill="#3b82f6" font-size="22" font-weight="700" style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">AI</text>
-            <rect x="90" y="132" width="100" height="6" rx="3" fill="#3b82f6" fill-opacity="0.22" />
-            <path d="M46 122 Q52 86 42 74 Q58 84 64 122 Z" fill="#10b981" fill-opacity="0.28" />
-            <circle cx="52" cy="74" r="4" fill="#10b981" />
-            <path d="M236 116 Q230 82 244 72 Q238 92 250 116 Z" fill="#3b82f6" fill-opacity="0.22" />
-            <circle cx="242" cy="72" r="5" fill="#3b82f6" fill-opacity="0.55" />
-            <path d="M210 44 L213 56 L225 60 L213 64 L210 76 L207 64 L195 60 L207 56 Z" fill="#3b82f6" fill-opacity="0.35" />
+            <rect
+              width="280"
+              height="160"
+              rx="12"
+              fill="url(#ws-banner-grad)"
+            />
+            <rect
+              x="70"
+              y="36"
+              width="140"
+              height="92"
+              rx="10"
+              fill="#ffffff"
+              stroke="#3b82f6"
+              stroke-opacity="0.18"
+              stroke-width="2"
+            />
+            <rect
+              x="82"
+              y="50"
+              width="116"
+              height="64"
+              rx="4"
+              fill="#3b82f6"
+              fill-opacity="0.06"
+            />
+            <text
+              x="140"
+              y="90"
+              text-anchor="middle"
+              fill="#3b82f6"
+              font-size="22"
+              font-weight="700"
+              style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+            >AI</text>
+            <rect
+              x="90"
+              y="132"
+              width="100"
+              height="6"
+              rx="3"
+              fill="#3b82f6"
+              fill-opacity="0.22"
+            />
+            <path
+              d="M46 122 Q52 86 42 74 Q58 84 64 122 Z"
+              fill="#10b981"
+              fill-opacity="0.28"
+            />
+            <circle
+              cx="52"
+              cy="74"
+              r="4"
+              fill="#10b981"
+            />
+            <path
+              d="M236 116 Q230 82 244 72 Q238 92 250 116 Z"
+              fill="#3b82f6"
+              fill-opacity="0.22"
+            />
+            <circle
+              cx="242"
+              cy="72"
+              r="5"
+              fill="#3b82f6"
+              fill-opacity="0.55"
+            />
+            <path
+              d="M210 44 L213 56 L225 60 L213 64 L210 76 L207 64 L195 60 L207 56 Z"
+              fill="#3b82f6"
+              fill-opacity="0.35"
+            />
           </svg>
         </div>
       </div>
@@ -50,7 +140,9 @@
 
     <!-- Quick start -->
     <section class="mb-6">
-      <h2 class="section-title mb-4 py-4">快速开始</h2>
+      <h2 class="section-title mb-4 py-4">
+        快速开始
+      </h2>
       <div class="quick-grid grid gap-4">
         <button
           v-for="item in quickStart"
@@ -59,12 +151,22 @@
           class="quick-card"
           @click="onQuickClick(item)"
         >
-          <div class="icon-box" :style="item.iconStyle">
-            <component :is="item.icon" class="w-5 h-5" />
+          <div
+            class="icon-box"
+            :style="item.iconStyle"
+          >
+            <component
+              :is="item.icon"
+              class="w-5 h-5"
+            />
           </div>
           <div class="min-w-0">
-            <div class="quick-title truncate">{{ item.title }}</div>
-            <div class="quick-desc line-clamp-2 mt-1">{{ item.desc }}</div>
+            <div class="quick-title truncate">
+              {{ item.title }}
+            </div>
+            <div class="quick-desc line-clamp-2 mt-1">
+              {{ item.desc }}
+            </div>
           </div>
           <span class="panel-link inline-flex items-center gap-1 mt-auto">
             <span>立即开始</span>
@@ -79,36 +181,57 @@
       <!-- 最近使用 -->
       <div class="bg-card rounded-xl shadow-card p-5">
         <div class="panel-header">
-          <h3 class="section-title">最近使用</h3>
-          <a href="#" class="panel-link inline-flex items-center gap-1" @click.prevent="onViewAll('最近使用')">
+          <h3 class="section-title">
+            最近使用
+          </h3>
+          <a
+            href="#"
+            class="panel-link inline-flex items-center gap-1"
+            @click.prevent="onViewAll('最近使用')"
+          >
             <span>查看全部</span>
             <ArrowRight class="w-3 h-3" />
           </a>
         </div>
         <div class="flex flex-col gap-3">
           <a
-            v-for="(r, i) in recent"
-            :key="i"
+            v-for="c in chatStore.sessions"
+            :key="c.id"
             href="#"
             class="flex items-center gap-3 group"
-            @click.prevent="onItemClick(r)"
+            @click.prevent="onOpenSession(c.id)"
           >
-            <div class="file-icon-box" :style="r.iconStyle">
-              <component :is="r.icon" class="w-4 h-4" />
+            <div
+              class="file-icon-box"
+              :style="recentIconStyle"
+            >
+              <MessageSquare class="w-4 h-4" />
             </div>
             <div class="min-w-0 flex-1">
-              <div class="list-title truncate group-hover:text-primary transition-colors">{{ r.title }}</div>
-              <div class="list-meta truncate">{{ r.meta }}</div>
+              <div class="list-title truncate group-hover:text-primary transition-colors">{{ c.title }}</div>
+              <div class="list-meta truncate">AI Chat</div>
             </div>
           </a>
+          <div
+            v-if="!chatStore.sessions.length"
+            class="text-sm text-muted py-4 text-center"
+          >
+            暂无最近会话
+          </div>
         </div>
       </div>
 
       <!-- 热门模板 -->
       <div class="bg-card rounded-xl shadow-card p-5">
         <div class="panel-header">
-          <h3 class="section-title">热门模板</h3>
-          <a href="#" class="panel-link inline-flex items-center gap-1" @click.prevent="onViewAll('热门模板')">
+          <h3 class="section-title">
+            热门模板
+          </h3>
+          <a
+            href="#"
+            class="panel-link inline-flex items-center gap-1"
+            @click.prevent="onViewAll('热门模板')"
+          >
             <span>查看更多</span>
             <ArrowRight class="w-3 h-3" />
           </a>
@@ -121,8 +244,14 @@
             class="flex items-center gap-3 group"
             @click.prevent="onItemClick(t)"
           >
-            <div class="file-icon-box" :style="t.iconStyle">
-              <component :is="t.icon" class="w-4 h-4" />
+            <div
+              class="file-icon-box"
+              :style="t.iconStyle"
+            >
+              <component
+                :is="t.icon"
+                class="w-4 h-4"
+              />
             </div>
             <div class="min-w-0 flex-1">
               <div class="list-title truncate group-hover:text-primary transition-colors">{{ t.title }}</div>
@@ -135,8 +264,14 @@
       <!-- 系统公告 -->
       <div class="bg-card rounded-xl shadow-card p-5">
         <div class="panel-header">
-          <h3 class="section-title">系统公告</h3>
-          <a href="#" class="panel-link inline-flex items-center gap-1" @click.prevent="onViewAll('系统公告')">
+          <h3 class="section-title">
+            系统公告
+          </h3>
+          <a
+            href="#"
+            class="panel-link inline-flex items-center gap-1"
+            @click.prevent="onViewAll('系统公告')"
+          >
             <span>查看全部</span>
             <ArrowRight class="w-3 h-3" />
           </a>
@@ -149,8 +284,14 @@
             class="flex items-start gap-3 group"
             @click.prevent="onItemClick(a)"
           >
-            <div class="file-icon-box mt-0.5" :style="a.iconStyle">
-              <component :is="a.icon" class="w-4 h-4" />
+            <div
+              class="file-icon-box mt-0.5"
+              :style="a.iconStyle"
+            >
+              <component
+                :is="a.icon"
+                class="w-4 h-4"
+              />
             </div>
             <div class="min-w-0 flex-1">
               <div class="list-title truncate group-hover:text-primary transition-colors">{{ a.title }}</div>
@@ -164,7 +305,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, type CSSProperties, type Component } from 'vue'
+import { ref, onMounted, type CSSProperties, type Component } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ArrowUp,
   ArrowRight,
@@ -173,7 +315,6 @@ import {
   Lightbulb,
   Bot,
   FileText,
-  BarChart2,
   LayoutTemplate,
   ClipboardList,
   Megaphone,
@@ -181,8 +322,16 @@ import {
   Database,
 } from 'lucide-vue-next'
 import { ElMessage } from 'element-plus'
+import { useChatStore } from '@/stores/chat'
 
+const router = useRouter()
+const chatStore = useChatStore()
 const prompt = ref('')
+
+// 进入工作台时拉取最近会话，展示在"最近使用"区域
+onMounted(() => {
+  chatStore.fetchRecent()
+})
 
 interface QuickItem {
   title: string
@@ -237,35 +386,11 @@ interface ListItem {
   iconStyle: CSSProperties
 }
 
-const recent: ListItem[] = [
-  {
-    title: '数据分析报告',
-    meta: '文档分析 · 2小时前',
-    icon: FileText,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #3b82f6 10%, #ffffff)',
-      color: '#3b82f6',
-    },
-  },
-  {
-    title: '产品需求文档',
-    meta: '文档分析 · 昨天',
-    icon: FileText,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #10b981 10%, #ffffff)',
-      color: '#10b981',
-    },
-  },
-  {
-    title: '市场调研分析',
-    meta: 'Agent 任务 · 3天前',
-    icon: BarChart2,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #3b82f6 14%, #ffffff)',
-      color: '#3b82f6',
-    },
-  },
-]
+/** 最近会话的图标样式 */
+const recentIconStyle: CSSProperties = {
+  backgroundColor: 'color-mix(in srgb, #3b82f6 10%, #ffffff)',
+  color: '#3b82f6',
+}
 
 const templates: ListItem[] = [
   {
@@ -327,16 +452,32 @@ const announcements: ListItem[] = [
   },
 ]
 
-function onPrompt() {
-  const text = prompt.value.trim();
-  
+async function onPrompt() {
+  const text = prompt.value.trim()
   if (!text) return
-  // ElMessage.success(`已提交：${text}`)
+
+  // 截取前 30 个字符作为会话标题
+  const title = text.slice(0, 30)
   prompt.value = ''
+
+  try {
+    await chatStore.createSession(title)
+    // 把完整输入存入 store，chat 页面 onMounted 后消费它自动发送首条消息
+    chatStore.pendingPrompt = text
+    router.push('/chat')
+  } catch {
+    // createSession 失败时 request 拦截器已弹错，这里不重复提示
+  }
 }
 
 function onQuickClick(item: QuickItem) {
   ElMessage.info(`即将进入：${item.title}`)
+}
+
+/** 点击最近会话：选中并跳转到 chat 页面 */
+function onOpenSession(id: number) {
+  chatStore.selectSession(id)
+  router.push('/chat')
 }
 
 function onItemClick(item: ListItem) {

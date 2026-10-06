@@ -9,7 +9,7 @@
           placeholder="搜索功能、文件、知识库..."
           class="search-input"
           @keyup.enter="onSearch"
-        />
+        >
       </div>
     </div>
 
@@ -21,11 +21,14 @@
           @click="toggleNotify"
         >
           <Bell class="w-5 h-5" />
-          <span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary"></span>
+          <span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
         </button>
 
         <transition name="dropdown">
-          <div v-if="notifyOpen" class="notify-dropdown">
+          <div
+            v-if="notifyOpen"
+            class="notify-dropdown"
+          >
             <div class="notify-header">
               <span class="notify-title">通知</span>
               <span class="notify-count">{{ notifications.length }} 条未读</span>
@@ -38,7 +41,10 @@
                 class="notify-item"
                 @click.prevent="notifyOpen = false"
               >
-                <div class="notify-dot" :style="{ background: n.color }"></div>
+                <div
+                  class="notify-dot"
+                  :style="{ background: n.color }"
+                />
                 <div class="min-w-0">
                   <div class="notify-text truncate">{{ n.text }}</div>
                   <div class="notify-time">{{ n.time }}</div>
@@ -46,7 +52,11 @@
               </a>
             </div>
             <div class="notify-footer">
-              <a href="#" class="notify-all" @click.prevent="notifyOpen = false">查看全部通知</a>
+              <a
+                href="#"
+                class="notify-all"
+                @click.prevent="notifyOpen = false"
+              >查看全部通知</a>
             </div>
           </div>
         </transition>
@@ -57,24 +67,27 @@
           {{ userInfo?.nickname.substring(0,1) || '小' }}
         </div>
         <!-- <span class="text-sm text-foreground truncate">小明</span> -->
-		 <el-dropdown>
-			<span class="user-menu text-sm truncate">
-				{{ userInfo?.nickname || '小明' }}
-				<el-icon>
-				   <ArroeDown/>
-			    </el-icon>
-			</span>
-			<template #dropdown>
-				<el-dropdoen-menu>
-					<el-dropdown-item>
-						个人设置
-					</el-dropdown-item>
-					<el-dropdown-item divided @click="handleLogout">
-						退出登录
-					</el-dropdown-item>
-				</el-dropdoen-menu>
-			</template>
-		 </el-dropdown>
+        <el-dropdown>
+          <span class="user-menu text-sm truncate">
+            {{ userInfo?.nickname || '小明' }}
+            <el-icon>
+              <ArroeDown />
+            </el-icon>
+          </span>
+          <template #dropdown>
+            <el-dropdoen-menu>
+              <el-dropdown-item>
+                个人设置
+              </el-dropdown-item>
+              <el-dropdown-item
+                divided
+                @click="handleLogout"
+              >
+                退出登录
+              </el-dropdown-item>
+            </el-dropdoen-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
   </header>
