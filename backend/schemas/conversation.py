@@ -1,8 +1,18 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
 
 from models.conversation import ConversationType
 from models.message import MessageRole
+
+class PageResponse(BaseModel, Generic[T]):
+    ### 通用分页响应
+    items: list[T]
+    total: int
+    page: int
+    page_size: int
 
 class ConversationCreate(BaseModel):
     # 会话标题（工作台输入框发送时通常把问题作为标题）

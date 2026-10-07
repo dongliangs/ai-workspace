@@ -7,7 +7,8 @@
  *
  * 对接接口（业务设计文档 V0.1）：
  *   - createSession  → POST /conversations/create
- *   - fetchRecent    → GET  /conversations/recent
+ *   - fetchRecent    → GET  /conversations/recent（分页）
+ *   - loadMore       → GET  /conversations/recent（下一页，sidebar 无限滚动）
  *   - 发送消息 / 历史消息由 chat 视图直接调 API（不放在 store，避免消息状态耦合）
  * ===========================================================================
  */
@@ -16,31 +17,36 @@ import { defineStore } from 'pinia'
 import {
   conversationNew,
   getRecentConversations,
-  type Conversation,
 } from '@/api/conversation'
 
-/** 复用后端 Conversation 类型作为会话实体 */
-export type ChatSession = Conversation
+/**
+ * 会话实体（取分页 items 与完整 Conversation 的公共字段）。
+ * sidebar 列表与 workspace 最近使用都只需要 id + title；
+ * createSession 返回的 Conversation 字段更多，结构兼容可安全赋值。
+ */
+export interface ChatSession {
+  id: number
+  title: string
+}
 
 export const useChatStore = defineStore('chat', () => {
   // ---- 状态 ----
-  /** 对话记录列表（按 updated_at DESC 排序） */
+  /** 对话记录列表（按 updated_at DESC 排序，分页累加） */
   const sessions = ref<ChatSession[]>([])
   /** 当前选中的会话 id；null 表示未选中（新会话欢迎态） */
   const currentId = ref<number | null>(null)
-  /**
-   * 标记 currentId 的变化是否由 createSession 触发。
-   * 新建的会话没有历史消息，chat 页面 watch(currentId) 时据此跳过历史加载，
-   * 避免 loadMessages 返回空数组覆盖掉刚 push 的用户消息和 assistant 占位消息。
-   */
-  const justCreated = ref(false)
-  /** 加载中标记（创建会话 / 拉取列表时） */
+  /** 分页参数 */
+  const page = ref(1)
+  const pageSize = ref(20)
+  /** 后端返回的总条数 */
+  const total = ref(0)
+  /** 首次加载中（fetchRecent 重置时） */
   const loading = ref(false)
-  /**
-   * 待发送的提示词（workspace 输入框内容）。
-   * workspace 创建会话后把用户输入存到这里，跳转 /chat 后由 chat 页面消费：
-   * 自动作为首条消息发送给 LLM，实现"工作台提问 → 跳转 chat → 直接开始对话"。
-   */
+  /** 加载更多中（loadMore 时） */
+  const loadingMore = ref(false)
+  /** 新建会话标记：chat 页面 watch(currentId) 据此跳过历史加载 */
+  const justCreated = ref(false)
+  /** 待发送的提示词（workspace → chat 跨页传递） */
   const pendingPrompt = ref<string | null>(null)
 
   // ---- 计算属性 ----
@@ -48,6 +54,8 @@ export const useChatStore = defineStore('chat', () => {
   const currentSession = computed(
     () => sessions.value.find((s) => s.id === currentId.value) ?? null,
   )
+  /** 是否还有更多可加载 */
+  const hasMore = computed(() => sessions.value.length < total.value)
 
   // ---- 方法 ----
 
@@ -55,16 +63,13 @@ export const useChatStore = defineStore('chat', () => {
    * 新建会话。
    * 调 POST /conversations/create，后端通过 JWT 绑定 user_id，返回完整 Conversation。
    * 成功后插入列表头部并设为当前会话。
-   *
-   * @param title 会话标题（workspace 输入框截取前 30 字符传入）
-   * @returns 创建成功的会话对象
    */
   async function createSession(title: string) {
     loading.value = true
     try {
       const session = await conversationNew({ title, type: 'chat' })
       sessions.value.unshift(session)
-      // 标记为新建会话，chat 页面 watch 会据此跳过历史消息加载
+      total.value += 1
       justCreated.value = true
       currentId.value = session.id
       return session
@@ -74,27 +79,46 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
-   * 拉取最近会话列表。
-   * 调 GET /conversations/recent，后端按 updated_at DESC 返回。
-   * 通常在 workspace 页面 onMounted 时调用。
+   * 拉取最近会话列表（重置分页，加载第一页）。
+   * 调 GET /conversations/recent?page=1&page_size=20。
+   * 通常在 workspace 页面 onMounted、进入 chat 页面时调用。
    */
   async function fetchRecent() {
     loading.value = true
     try {
-      const list = await getRecentConversations()
-      sessions.value = list ?? []
+      page.value = 1
+      const res = await getRecentConversations({ page: page.value, page_size: pageSize.value })
+      sessions.value = res.items ?? []
+      total.value = res.total ?? 0
     } finally {
       loading.value = false
     }
   }
 
   /**
+   * 加载下一页（sidebar 无限滚动触底时调用）。
+   * 已无更多或正在加载时直接返回，避免重复请求。
+   */
+  async function loadMore() {
+    if (!hasMore.value || loadingMore.value || loading.value) return
+    loadingMore.value = true
+    try {
+      page.value += 1
+      const res = await getRecentConversations({ page: page.value, page_size: pageSize.value })
+      const items = res.items ?? []
+      // 追加到列表尾部
+      sessions.value.push(...items)
+      total.value = res.total ?? 0
+    } finally {
+      loadingMore.value = false
+    }
+  }
+
+  /**
    * 选中某个会话（sidebar 点击对话记录时调用）。
    * 传 null 表示取消选中（新对话欢迎态）。
-   * chat 页面 watch currentId 切换会话内容。
    */
   function selectSession(id: number | null) {
-    // 切换已有会话需要加载历史消息，清除新建标记
     justCreated.value = false
     currentId.value = id
   }
@@ -104,10 +128,16 @@ export const useChatStore = defineStore('chat', () => {
     currentId,
     currentSession,
     loading,
+    loadingMore,
     justCreated,
     pendingPrompt,
+    page,
+    pageSize,
+    total,
+    hasMore,
     createSession,
     fetchRecent,
+    loadMore,
     selectSession,
   }
 })

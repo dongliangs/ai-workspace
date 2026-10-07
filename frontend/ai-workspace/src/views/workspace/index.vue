@@ -195,7 +195,7 @@
         </div>
         <div class="flex flex-col gap-3">
           <a
-            v-for="c in chatStore.sessions"
+            v-for="c in recentSessions"
             :key="c.id"
             href="#"
             class="flex items-center gap-3 group"
@@ -213,7 +213,7 @@
             </div>
           </a>
           <div
-            v-if="!chatStore.sessions.length"
+            v-if="!recentSessions.length"
             class="text-sm text-muted py-4 text-center"
           >
             暂无最近会话
@@ -305,7 +305,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, type CSSProperties, type Component } from 'vue'
+import { ref, computed, onMounted, type CSSProperties, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowUp,
@@ -332,6 +332,9 @@ const prompt = ref('')
 onMounted(() => {
   chatStore.fetchRecent()
 })
+
+// 最近使用区域只展示前 5 条
+const recentSessions = computed(() => chatStore.sessions.slice(0, 5))
 
 interface QuickItem {
   title: string

@@ -1,8 +1,8 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.session import get_db, AsyncSessionLocal
@@ -13,6 +13,7 @@ from schemas.common import ApiResponse
 from schemas.conversation import (
     ConversationCreate,
     ConversationResponse,
+    PageResponse,
     MessageCreate,
     MessageResponse,
 )
@@ -54,33 +55,70 @@ async def create_conversation(
     )
 
 # 获取当前用户最近使用的会话
+# 改为分页设计，适配前端无限加载
+"""
+page,
+page_size
+"""
 @router.get(
     "/recent",
-    response_model=ApiResponse[list[ConversationResponse]],
+    response_model=ApiResponse[PageResponse[ConversationResponse]],
 )
 async def get_recent_conversations(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    limit: int = 10,
+    # limit: int = 10,
+    page:int = Query(default=1, ge=1),
+    page_size:int = Query(default=5, ge=1, le=100)
 ):
     """
-    获取当前用户最近使用的会话，按 updated_at 倒序。
+    获取当前用户最近使用的会话，支持分页。
+    page:当前页码，从1开始。
+    page_size:每页条数。
+    total:当前用户的会话总数。
     工作台"最近使用"列表使用。
     """
+    #1.查询当前用户的会话总数
     result = await db.execute(
+        # select(Conversation)
+        select(func.count())
+        .select_from(Conversation)
+        .where(Conversation.user_id == current_user.id)
+        # .order_by(Conversation.updated_at.desc())
+        # .limit(limit)
+    )
+    # conversations = result.scalars().all()
+    total = result.scalar_one()
+
+    # 2.根据页码计算数据库偏移量
+    offset = (page - 1) * page_size
+    # 3.查询当前的会话
+    offResult = await db.execute(
         select(Conversation)
         .where(Conversation.user_id == current_user.id)
-        .order_by(Conversation.updated_at.desc())
-        .limit(limit)
+        .order_by(
+            Conversation.updated_at.desc(),
+            Conversation.id.desc(),
+        )
+        .offset(offset)
+        .limit(page_size)
     )
-    conversations = result.scalars().all()
 
-    return ApiResponse(
-        code=0,
-        data=[
+    conversations = offResult.scalars().all()
+
+    #4.组装分页响应
+    page_data = PageResponse(
+        items=[
             ConversationResponse.model_validate(conv)
             for conv in conversations
         ],
+        total=total,
+        page=page,
+        page_size=page_size
+    )
+    return ApiResponse(
+        code=0,
+        data=page_data,
         message="获取最近会话成功",
     )
 

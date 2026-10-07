@@ -1,11 +1,5 @@
 /**
  * 会话相关接口
- * 对应业务设计文档 V0.1：
- *   - POST   /conversations/create             创建会话
- *   - GET    /conversations/recent             获取最近会话
- *   - GET    /conversations/{id}               查询会话基本信息
- *   - GET    /conversations/{id}/messages      查询历史消息
- *   - POST   /conversations/{id}/messages      发送消息（流式，后端调 LLM 后逐块返回）
  */
 import { post, get, stream, type StreamOptions } from '@/utils/request'
 
@@ -32,14 +26,27 @@ export interface ChatMessageDTO {
   created_at: string
 }
 
+interface itemsType {
+  id: number
+  title: string
+}
+
+/** 最近会话分页响应（GET /conversations/recent） */
+export interface RecentConversation {
+  items: itemsType[]
+  page: number
+  page_size: number
+  total: number
+}
+
 /** 创建一个新会话 */
 export function conversationNew(options: ConversationCreate) {
   return post<Conversation>('/conversations/create', { ...options })
 }
 
-/** 获取当前用户最近使用的会话列表 */
-export function getRecentConversations() {
-  return get<Conversation[]>('/conversations/recent')
+/** 获取当前用户最近使用的会话列表（分页） */
+export function getRecentConversations(query: { page: number; page_size: number }) {
+  return get<RecentConversation>('/conversations/recent', query)
 }
 
 /** 查询某个会话的基本信息 */

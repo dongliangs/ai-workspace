@@ -51,13 +51,20 @@
 
       <!-- ============ 下半部分：对话记录（仅 /chat） + 用户信息 ============ -->
       <div class="sidebar-bottom">
-        <!-- 对话记录区域：仅 AI Chat 页面显示，超出可滚动 -->
+        <!-- 对话记录区域：仅 AI Chat 页面显示，无限滚动加载 -->
         <template v-if="isChatPage">
           <div class="border-t border-border pt-3 flex-1 min-h-0 flex flex-col">
             <div class="flex items-center justify-between px-2 mb-2">
               <span class="text-xs font-medium text-muted">对话记录</span>
             </div>
-            <el-scrollbar class="chat-history-scroll" @end-reached="loadMore">
+            <div
+              v-infinite-scroll="loadMore"
+              v-loading="chatStore.loading"
+              :infinite-scroll-disabled="!chatStore.hasMore || chatStore.loadingMore"
+              :infinite-scroll-distance="20"
+              :infinite-scroll-immediate="false"
+              class="chat-history-scroll"
+            >
               <a
                 v-for="s in chatStore.sessions"
                 :key="s.id"
@@ -69,7 +76,16 @@
                 <MessageSquare class="w-4 h-4 shrink-0" />
                 <span class="truncate">{{ s.title }}</span>
               </a>
-            </el-scrollbar>
+              <div v-if="chatStore.loadingMore" class="loading-tip">
+                加载中...
+              </div>
+              <div
+                v-if="chatStore.sessions.length && !chatStore.hasMore"
+                class="loading-tip"
+              >
+                没有更多了
+              </div>
+            </div>
           </div>
         </template>
       </div>
@@ -102,7 +118,7 @@ import {
   Bot,
   Workflow,
 } from 'lucide-vue-next'
-import { computed, type Component } from 'vue'
+import { computed, watch, type Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
@@ -127,13 +143,22 @@ const router = useRouter()
 const route = useRoute()
 const userInfo = useAuthStore()
 const chatStore = useChatStore()
-import type { ScrollbarDirection } from 'element-plus'
+
 // 是否在 AI Chat 页面：控制"对话记录"区域的显隐
 const isChatPage = computed(() => route.path === '/chat')
 
+// 进入 chat 页面时拉取最近会话（首次或从其他页面切回）
+watch(
+  isChatPage,
+  (val) => {
+    if (val && chatStore.sessions.length === 0) {
+      chatStore.fetchRecent()
+    }
+  },
+  { immediate: true },
+)
+
 function onNavClick(item: NavItem) {
-  // "新聊天"导航项：点击进入 /chat 并重置为未选中会话态（欢迎态），
-  // 用户在 chat 页面发送首条消息时会自动创建会话（避免空会话占位）。
   if (item.path === '/chat') {
     chatStore.selectSession(null)
   }
@@ -145,10 +170,9 @@ function onSelectSession(id: number) {
   chatStore.selectSession(id)
 }
 
-const loadMore = (direction: ScrollbarDirection) => {
-  if (direction === 'bottom') {
-    // todo
-  }
+/** 触底加载更多（由 v-infinite-scroll 触发） */
+function loadMore() {
+  chatStore.loadMore()
 }
 </script>
 
@@ -215,6 +239,13 @@ const loadMore = (direction: ScrollbarDirection) => {
 .chat-history-item.active {
   background-color: var(--aws-sidebar-active);
   color: var(--aws-primary);
+}
+
+.loading-tip {
+  text-align: center;
+  padding: 8px;
+  color: var(--aws-muted);
+  font-size: var(--aws-text-xs);
 }
 
 @media (max-width: 1024px) {
