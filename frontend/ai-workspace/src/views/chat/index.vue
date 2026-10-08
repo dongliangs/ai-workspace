@@ -87,6 +87,12 @@
               >
                 <i /><i /><i />
               </span>
+              <!-- AI 回复：渲染 markdown（标题加粗/代码块高亮/复制） -->
+              <MarkdownContent
+                v-else-if="m.role === 'assistant'"
+                :content="m.content"
+              />
+              <!-- 用户消息：纯文本 -->
               <span
                 v-else
                 class="bubble-text"
@@ -220,6 +226,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { sendMessageStream, getMessages, getConversation } from '@/api/conversation'
 import type { ChatMessageDTO } from '@/api/conversation'
+import MarkdownContent from '@/components/chat/MarkdownContent.vue'
 
 /* ------------------------------------------------------------------ */
 /*  RobotMark：欢迎态 logo 与 AI 头像复用的机器人 SVG                 */
@@ -728,10 +735,11 @@ function formatSize(bytes: number): string {
   word-break: break-word;
 }
 .bubble.assistant {
-  background: var(--aws-card);
-  border: 1px solid var(--aws-border);
+  background: transparent;
+  border: none;
   color: var(--aws-foreground);
   border-top-left-radius: 4px;
+  padding: 0;
 }
 .bubble.user {
   background: var(--aws-primary);
