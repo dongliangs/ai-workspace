@@ -37,7 +37,7 @@
             :key="item.path"
             href="#"
             class="nav-item"
-            :class="{ 'nav-active': route.path === item.path }"
+            :class="{ 'nav-active': isNavActive(item.path) }"
             @click.prevent="onNavClick(item)"
           >
             <component
@@ -49,10 +49,10 @@
         </nav>
       </div>
 
-      <!-- ============ 下半部分：对话记录（仅 /chat） + 用户信息 ============ -->
+      <!-- ============ 下半部分：对话记录（/chat + /agent） + 用户信息 ============ -->
       <div class="sidebar-bottom">
-        <!-- 对话记录区域：仅 AI Chat 页面显示，无限滚动加载 -->
-        <template v-if="isChatPage">
+        <!-- 对话记录区域：Chat / Agent 页面显示，按模式过滤，无限滚动加载 -->
+        <template v-if="showSessionList">
           <div class="border-t border-border pt-3 flex-1 min-h-0 flex flex-col">
             <div class="flex items-center justify-between px-2 mb-2">
               <span class="text-xs font-medium text-muted">对话记录</span>
@@ -122,6 +122,7 @@ import { computed, watch, type Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
+import type { ConversationType } from '@/api/conversation'
 
 interface NavItem {
   label: string
@@ -132,9 +133,9 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: '工作台', path: '/workspace', icon: LayoutGrid },
   { label: '新聊天', path: '/chat', icon: MessageSquare },
-  { label: '文件', path: '/files', icon: FileText },
+  // { label: '文件', path: '/files', icon: FileText },
   { label: '知识库', path: '/knowledge', icon: BookOpen },
-  { label: 'Agent', path: '/agents', icon: Bot },
+  { label: 'Agent', path: '/agent', icon: Bot },
   { label: '工作流', path: '/workflow', icon: Workflow },
   // { label: '设置', path: '/settings', icon: Settings },
 ]
@@ -144,30 +145,64 @@ const route = useRoute()
 const userInfo = useAuthStore()
 const chatStore = useChatStore()
 
-// 是否在 AI Chat 页面：控制"对话记录"区域的显隐
-const isChatPage = computed(() => route.path === '/chat')
+/** 当前路由对应的会话类型（/chat → chat, /agent → agent） */
+const routeMode = computed<ConversationType>(() =>
+  route.path === '/agent' ? 'agent' : 'chat',
+)
 
-// 进入 chat 页面时拉取最近会话（首次或从其他页面切回）
+/** 是否在 Chat / Agent 页面：控制"对话记录"区域的显隐 */
+const showSessionList = computed(() =>
+  route.path === '/chat' || route.path === '/agent',
+)
+
+/**
+ * 导航高亮：Chat / Agent 互斥高亮（不会两个同时 active）。
+ * 其他路由按 path 精确匹配。
+ */
+function isNavActive(path: string): boolean {
+  if (path === '/chat') return route.path === '/chat'
+  if (path === '/agent') return route.path === '/agent'
+  return route.path === path
+}
+
+/**
+ * 进入 Chat / Agent 页面或切换模式时，按类型拉取最近会话。
+ * - 切到 /chat → fetchRecent('chat')
+ * - 切到 /agent → fetchRecent('agent')
+ * 每次切换都重新拉取，确保列表与当前模式一致。
+ */
 watch(
-  isChatPage,
-  (val) => {
-    if (val && chatStore.sessions.length === 0) {
-      chatStore.fetchRecent()
+  routeMode,
+  (mode) => {
+    if (showSessionList.value) {
+      chatStore.fetchRecent(mode)
     }
   },
   { immediate: true },
 )
 
 function onNavClick(item: NavItem) {
-  if (item.path === '/chat') {
+  // Chat 和 Agent 入口都重置到欢迎态
+  if (item.path === '/chat' || item.path === '/agent') {
     chatStore.selectSession(null)
   }
   router.push(item.path)
 }
 
-/** 选中某个对话会话 */
+/**
+ * 选中某个对话会话。
+ * 根据会话 type 跳转对应路由（chat → /chat, agent → /agent），
+ * 保持路由与会话类型一致。
+ */
 function onSelectSession(id: number) {
+  const session = chatStore.sessions.find((s) => s.id === id)
+  const targetType: ConversationType = session?.type ?? routeMode.value
   chatStore.selectSession(id)
+  // 会话类型与当前路由不一致时跳转
+  const targetPath = targetType === 'agent' ? '/agent' : '/chat'
+  if (route.path !== targetPath) {
+    router.push(targetPath)
+  }
 }
 
 /** 触底加载更多（由 v-infinite-scroll 触发） */

@@ -36,3 +36,7 @@ class LoginData(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+# 公钥接口返回的数据结构
+class PublicKeyResponse(BaseModel):
+    public_key: str

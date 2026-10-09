@@ -52,7 +52,7 @@ export interface AuthState {
 
 // 登录态持久化存储的 key，存的是 { token, user } 的 JSON 字符串。
 const TOKEN_KEY = 'aws_auth_state'
-// "记住我"功能存的邮箱，用于下次打开登录页自动回填邮箱。
+// "记住我"功能存的邮箱和密码，用于下次打开登录页自动回填。
 const REMEMBER_KEY = 'aws_auth_remember'
 
 // 存储用户信息，防止登录后刷新丢失
@@ -109,7 +109,7 @@ function saveUserInfo(info: AuthUser) {
  */
 function clearPersistedState() {
   localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(REMEMBER_KEY)
+  // localStorage.removeItem(REMEMBER_KEY)
   localStorage.removeItem(USER_INFO)
 }
 
@@ -155,7 +155,7 @@ export const useAuthStore = defineStore('auth', () => {
    *
    * @param email    邮箱
    * @param password 密码
-   * @param remember 是否记住邮箱（勾选"记住我"）
+   * @param remember 是否记住邮箱和密码（勾选"记住我"）
    */
   async function login(email: string, password: string, remember: boolean) {
     // 每次调用前清掉上一次的错误信息。
@@ -188,9 +188,12 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = result.user
         persistState(result.access_token)
       }
-      // "记住我"：勾选则把邮箱存起来，下次登录页自动回填；不勾选则清除。
+      // "记住我"：勾选则把邮箱和密码存起来，下次登录页自动回填；不勾选则清除。
       if (remember) {
-        localStorage.setItem(REMEMBER_KEY, email)
+        localStorage.setItem(
+          REMEMBER_KEY,
+          JSON.stringify({ email, password }),
+        )
       } else {
         localStorage.removeItem(REMEMBER_KEY)
       }
@@ -281,11 +284,20 @@ export const useAuthStore = defineStore('auth', () => {
   /* -------------------------------------------------------------------------- */
 
   /**
-   * 读取"记住我"的邮箱。
-   * 登录页打开时调用，自动回填邮箱输入框。
+   * 读取"记住我"的邮箱和密码。
+   * 登录页打开时调用，自动回填邮箱和密码输入框。
+   * 返回 { email, password }；未存储时返回 { email: '', password: '' }。
    */
-  function rememberedEmail(): string {
-    return localStorage.getItem(REMEMBER_KEY) ?? ''
+  function rememberedCredentials(): { email: string; password: string } {
+    const raw = localStorage.getItem(REMEMBER_KEY)
+    if (!raw) return { email: '', password: '' }
+    try {
+      const obj = JSON.parse(raw) as { email?: string; password?: string }
+      return { email: obj.email ?? '', password: obj.password ?? '' }
+    } catch {
+      // 兼容旧版本只存邮箱字符串的情况
+      return { email: raw, password: '' }
+    }
   }
 
   /**
@@ -322,7 +334,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     logout,
-    rememberedEmail,
+    rememberedCredentials,
     clearError,
     authCurrentUser
   }

@@ -19,20 +19,39 @@ from schemas.auth import (
     RegisterRequest,
     TokenResponse,
     LoginData,
-    UserResponse
+    UserResponse,
+    PublicKeyResponse,
 )
 
 from core.security import (
     create_access_token,
     hash_password,
-    verify_password
+    verify_password,
+    get_public_key_pem,
 )
+from core.security import decrypt_password
 
 #创建Auth 路由
 router = APIRouter(
     prefix="/auth",
     tags=["Auth"],
 )
+
+# =========================
+# 获取 RSA 公钥
+# =========================
+
+@router.get(
+    "/public-key",
+    response_model=ApiResponse[PublicKeyResponse],
+)
+async def get_public_key():
+    """返回当前服务的 RSA 公钥（PEM 格式），供前端加密密码使用。"""
+    return ApiResponse(
+        code=0,
+        data=PublicKeyResponse(public_key=get_public_key_pem()),
+        message="获取公钥成功",
+    )
 
 # 用户注册
 
@@ -45,6 +64,11 @@ async def register(
     # 获取数据库Session
     db: AsyncSession = Depends(get_db),
 ):
+    # 先解密加密密码再判断校验
+    # 解密前端 RSA 加密的密码（password 和 confirm_password 都要解）
+    data.password = decrypt_password(data.password)
+    data.confirm_password = decrypt_password(data.confirm_password)
+
     #检查两次密码是否一致
     if data.password != data.confirm_password:
         raise HTTPException(
@@ -84,11 +108,8 @@ async def register(
     await db.refresh(user)
 
     #5.生成JWT
-
     access_token = create_access_token(user.id)
-
     #6.返回给前端
-
     return ApiResponse(
         code=0,
         data=TokenResponse(
@@ -146,13 +167,8 @@ async def login(
     # =========================
     # 3. 验证密码
     # =========================
-
-    # data.password：
-    # 用户刚刚输入的密码。
-    #
-    # user.password_hash：
-    # 数据库保存的密码哈希。
-    #
+    # 解密前端RSA 的加密密码
+    data.password = decrypt_password(data.password)
     # verify_password() 会验证两者是否匹配。
     if not verify_password(
         data.password,

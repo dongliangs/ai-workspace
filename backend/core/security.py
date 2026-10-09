@@ -1,6 +1,6 @@
 # datetime 计算JWT 什么时候过期
 from datetime import datetime, timedelta, timezone
-
+import cryptography
 
 # 生成和解析JWT Token
 import jwt
@@ -32,9 +32,52 @@ from db.session import get_db
 from models.user import User
 #获取项目配置。
 from core.config import settings
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives import hashes
+import base64
+
+
+# ===================== RSA 密钥对管理 =====================
+# 服务启动时自动生成 2048 位 RSA 密钥对。
+#   - 私钥始终保留在内存中，不落盘、不暴露给前端
+#   - 公钥通过 /auth/public-key 接口返回给前端，前端用公钥加密密码
+# 每次服务重启会生成新的密钥对，意味着重启后前端缓存的旧公钥会失效，
+# 前端需要在登录/注册时重新获取公钥。
+
+# 生成 RSA 密钥对（2048 位）
+_rsa_private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048,
+)
+
+# 导出公钥为 PEM 格式字符串（SPKI），用于暴露给前端
+_rsa_public_key_pem = _rsa_private_key.public_key().public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+).decode("utf-8")
 
 #创建密码哈希工具
 password_hash = PasswordHash.recommended()
+
+# 获取公钥 PEM 字符串，供 /auth/public-key 接口返回给前端
+def get_public_key_pem() -> str:
+    """返回当前 RSA 公钥的 PEM 字符串（SPKI 格式）。"""
+    return _rsa_public_key_pem
+
+# 解密
+def decrypt_password ( encrypted_password: str ) -> str :
+    """用 RSA 私钥解密前端公钥加密的密码，返回明文密码。"""
+    ciphertext = base64.b64decode(encrypted_password)
+    plaintext = _rsa_private_key.decrypt(
+        ciphertext,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label= None ,
+        ),
+    )
+    return plaintext.decode( "utf-8" )
 
 #对用户密码进行哈希
 

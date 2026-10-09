@@ -155,22 +155,6 @@
           novalidate
           @submit.prevent="handleRegister"
         >
-          <div class="field">
-            <div class="field-control">
-              <Mail
-                class="field-icon"
-                :size="18"
-              />
-              <input
-                v-model="registerForm.email"
-                type="email"
-                class="field-input"
-                placeholder="请输入邮箱"
-                autocomplete="email"
-                @focus="clearFieldError"
-              >
-            </div>
-          </div>
           <!-- 设置昵称 -->
           <div class="field">
             <div class="field-control">
@@ -184,6 +168,22 @@
                 class="field-input"
                 placeholder="请设置一个昵称"
                 autocomplete="nickname"
+                @focus="clearFieldError"
+              >
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-control">
+              <Mail
+                class="field-icon"
+                :size="18"
+              />
+              <input
+                v-model="registerForm.email"
+                type="email"
+                class="field-input"
+                placeholder="请输入邮箱"
+                autocomplete="email"
                 @focus="clearFieldError"
               >
             </div>
@@ -299,10 +299,11 @@ const authStore = useAuthStore()
 
 const mode = ref<AuthMode>('login')
 
+const remembered = authStore.rememberedCredentials()
 const loginForm = reactive({
-  email: authStore.rememberedEmail(),
-  password: '',
-  remember: !!authStore.rememberedEmail(),
+  email: remembered.email,
+  password: remembered.password,
+  remember: !!remembered.email,
 })
 
 const registerForm = reactive({

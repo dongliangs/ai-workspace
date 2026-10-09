@@ -474,13 +474,25 @@ async function onPrompt() {
 }
 
 function onQuickClick(item: QuickItem) {
+  if (item.title === 'Agent 任务') {
+    chatStore.selectSession(null)
+    router.push('/agent')
+    return
+  }
+  if (item.title === 'AI Chat') {
+    chatStore.selectSession(null)
+    router.push('/chat')
+    return
+  }
   ElMessage.info(`即将进入：${item.title}`)
 }
 
-/** 点击最近会话：选中并跳转到 chat 页面 */
+/** 点击最近会话：选中并跳转到对应页面（chat → /chat, agent → /agent） */
 function onOpenSession(id: number) {
+  const session = chatStore.sessions.find((s) => s.id === id)
   chatStore.selectSession(id)
-  router.push('/chat')
+  const targetPath = session?.type === 'agent' ? '/agent' : '/chat'
+  router.push(targetPath)
 }
 
 function onItemClick(item: ListItem) {

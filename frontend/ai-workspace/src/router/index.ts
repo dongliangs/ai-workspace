@@ -31,23 +31,30 @@ const router = createRouter({
           component: () => import('@/views/workspace/index.vue'),
         },
         {
-          path:'chat',
+          path: 'chat',
           name: 'Chat',
-          component: () => import('@/views/chat/index.vue')
-        }
+          component: () => import('@/views/chat/index.vue'),
+        },
+        {
+          path: 'agent',
+          name: 'Agent',
+          component: () => import('@/views/chat/index.vue'),
+        },
       ],
     },
   ],
 })
 
 // 路由守卫：
-// - /workspace 需登录，未登录跳 /auth（带 redirect 参数，登录后回跳）
+// - AppLayout 下所有路由（/workspace、/chat、/agent）均需登录，未登录跳 /auth（带 redirect）
 // - /auth 已登录则跳 /workspace（避免重复登录）
 // - / 已登录则跳 /workspace（首页是未登录落地页）
+const PROTECTED_PATHS = ['/workspace', '/chat', '/agent']
+
 router.beforeEach((to) => {
   const auth = useAuthStore()
 
-  if (to.path.startsWith('/workspace') && !auth.isAuthenticated) {
+  if (PROTECTED_PATHS.some((p) => to.path.startsWith(p)) && !auth.isAuthenticated) {
     return { path: '/auth', query: { redirect: to.fullPath } }
   }
   if (to.path === '/auth' && auth.isAuthenticated) {
