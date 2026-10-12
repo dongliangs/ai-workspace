@@ -19,6 +19,20 @@ class Settings(BaseSettings):
     deepseek_model: str = "https://api.deepseek.com"
     deepseek_base_url: str = "deepseek-flash"
 
+    # ---- 文件上传配置 ----
+    # 文件存储根目录（相对于项目根目录）
+    upload_dir: str = "uploads"
+    # 最大文件大小，单位 MB
+    max_file_size_mb: int = 20
+    # 允许的文件扩展名（小写，不含点）
+    allowed_file_extensions: str = (
+        "jpg,jpeg,png,gif,webp,"
+        "pdf,txt,md,csv,"
+        "xlsx,xls,"
+        "doc,docx,"
+        "ppt,pptx"
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

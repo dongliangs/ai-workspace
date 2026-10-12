@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1180" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a855f7"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+    </filter>
+    <linearGradient id="grad-blue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eff6ff"/><stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="grad-green" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0fdf4"/><stop offset="100%" stop-color="#dcfce7"/>
+    </linearGradient>
+    <linearGradient id="grad-orange" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fffbeb"/><stop offset="100%" stop-color="#fef3c7"/>
+    </linearGradient>
+    <linearGradient id="grad-purple" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#faf5ff"/><stop offset="100%" stop-color="#f3e8ff"/>
+    </linearGradient>
+    <linearGradient id="grad-gray" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/><stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="grad-red" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef2f2"/><stop offset="100%" stop-color="#fee2e2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="1500" height="1180" fill="#ffffff"/>
+
+  <!-- 标题 -->
+  <text x="750" y="38" text-anchor="middle" font-size="24" font-weight="bold" fill="#0f172a">AI WorkSpace — 后端文件上传 &amp; Agent Runtime 架构图 (V2)</text>
+  <text x="750" y="60" text-anchor="middle" font-size="13" fill="#64748b">三层分离架构 + 3 个工具：calculator / analyze_excel / generate_chart</text>
+
+  <!-- ===================== ① 文件上传流程 ===================== -->
+  <rect x="40" y="85" width="1420" height="270" rx="12" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="60" y="110" font-size="15" font-weight="bold" fill="#334155">① 文件上传流程 (File Upload Flow)</text>
+
+  <!-- 前端 -->
+  <rect x="80" y="135" width="200" height="85" rx="8" fill="url(#grad-blue)" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="180" y="162" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">前端 (Vue3)</text>
+  <text x="180" y="182" text-anchor="middle" font-size="11" fill="#1e40af">FileUploader.vue</text>
+  <text x="180" y="200" text-anchor="middle" font-size="11" fill="#1e40af">multi-file + progress</text>
+
+  <!-- API file -->
+  <rect x="340" y="135" width="200" height="85" rx="8" fill="url(#grad-blue)" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="440" y="162" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">POST /api/files</text>
+  <text x="440" y="182" text-anchor="middle" font-size="11" fill="#1e40af">api/file.py</text>
+  <text x="440" y="200" text-anchor="middle" font-size="11" fill="#1e40af">校验扩展名/大小</text>
+
+  <!-- File Service -->
+  <rect x="600" y="135" width="200" height="85" rx="8" fill="url(#grad-green)" stroke="#86efac" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="700" y="162" text-anchor="middle" font-size="13" font-weight="bold" fill="#166534">File Service</text>
+  <text x="700" y="182" text-anchor="middle" font-size="11" fill="#166534">save_upload_file()</text>
+  <text x="700" y="200" text-anchor="middle" font-size="11" fill="#166534">UUID 存储 + 建 File 记录</text>
+
+  <!-- 磁盘 -->
+  <rect x="860" y="125" width="180" height="50" rx="8" fill="url(#grad-gray)" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="950" y="149" text-anchor="middle" font-size="13" font-weight="bold" fill="#475569">磁盘存储</text>
+  <text x="950" y="167" text-anchor="middle" font-size="11" fill="#475569">uploads/{user_id}/{uuid}</text>
+
+  <!-- 数据库 -->
+  <rect x="860" y="190" width="180" height="50" rx="8" fill="url(#grad-gray)" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="950" y="214" text-anchor="middle" font-size="13" font-weight="bold" fill="#475569">数据库 (File 表)</text>
+  <text x="950" y="232" text-anchor="middle" font-size="11" fill="#475569">id, filename, path, type</text>
+
+  <!-- 返回 file_id -->
+  <rect x="1100" y="135" width="200" height="85" rx="8" fill="url(#grad-blue)" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="1200" y="162" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">返回 {id, filename...}</text>
+  <text x="1200" y="182" text-anchor="middle" font-size="11" fill="#1e40af">前端保存 file_id 列表</text>
+  <text x="1200" y="200" text-anchor="middle" font-size="11" fill="#1e40af">发送消息时携带 file_ids</text>
+
+  <!-- 上传流程箭头 -->
+  <line x1="280" y1="177" x2="340" y2="177" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <line x1="540" y1="177" x2="600" y2="177" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <line x1="800" y1="160" x2="860" y2="150" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="800" y1="195" x2="860" y2="200" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="1040" y1="177" x2="1100" y2="177" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+
+  <!-- 关联文件步骤 -->
+  <rect x="80" y="250" width="1340" height="80" rx="8" fill="url(#grad-orange)" stroke="#fcd34d" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="100" y="275" font-size="13" font-weight="bold" fill="#92400e">② 发送消息时关联文件 (POST /api/agent/{id}/messages)</text>
+  <text x="100" y="296" font-size="11" fill="#92400e">associate_files_with_message() → 校验归属 → 回写 message_id → 返回 File 列表</text>
+  <text x="100" y="314" font-size="11" fill="#92400e">→ 注入 system 消息：列出 file_id / 文件名 / 类型 / 大小 → LLM 知道有哪些文件可用</text>
+
+  <!-- ===================== ③ Agent Runtime 架构 ===================== -->
+  <rect x="40" y="375" width="1420" height="190" rx="12" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="60" y="400" font-size="15" font-weight="bold" fill="#334155">③ Agent Runtime 架构 (ReAct 循环)</text>
+
+  <!-- API Agent -->
+  <rect x="80" y="420" width="200" height="75" rx="8" fill="url(#grad-blue)" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="180" y="445" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">api/agent.py</text>
+  <text x="180" y="463" text-anchor="middle" font-size="11" fill="#1e40af">POST /agent/{id}/messages</text>
+  <text x="180" y="480" text-anchor="middle" font-size="11" fill="#1e40af">SSE 流式响应</text>
+
+  <!-- Agent Service -->
+  <rect x="340" y="420" width="200" height="75" rx="8" fill="url(#grad-purple)" stroke="#d8b4fe" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="440" y="445" text-anchor="middle" font-size="13" font-weight="bold" fill="#6b21a8">Agent Service</text>
+  <text x="440" y="463" text-anchor="middle" font-size="11" fill="#6b21a8">stream_agent_response()</text>
+  <text x="440" y="480" text-anchor="middle" font-size="11" fill="#6b21a8">持久化 + done 事件</text>
+
+  <!-- Agent Runtime -->
+  <rect x="600" y="420" width="240" height="75" rx="8" fill="url(#grad-green)" stroke="#86efac" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="720" y="445" text-anchor="middle" font-size="13" font-weight="bold" fill="#166534">AgentRuntime (ReAct Loop)</text>
+  <text x="720" y="463" text-anchor="middle" font-size="11" fill="#166534">agent/runtime.py</text>
+  <text x="720" y="480" text-anchor="middle" font-size="11" fill="#166534">Thought → Action → Observation</text>
+
+  <!-- AgentContext -->
+  <rect x="900" y="420" width="200" height="75" rx="8" fill="url(#grad-gray)" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="1000" y="445" text-anchor="middle" font-size="13" font-weight="bold" fill="#475569">AgentContext</text>
+  <text x="1000" y="463" text-anchor="middle" font-size="11" fill="#475569">messages: system/user/tool</text>
+  <text x="1000" y="480" text-anchor="middle" font-size="11" fill="#475569">+ 文件元数据注入</text>
+
+  <!-- LLM Service -->
+  <rect x="1180" y="420" width="180" height="75" rx="8" fill="url(#grad-orange)" stroke="#fcd34d" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="1270" y="445" text-anchor="middle" font-size="13" font-weight="bold" fill="#92400e">LLM Service</text>
+  <text x="1270" y="463" text-anchor="middle" font-size="11" fill="#92400e">chat_with_tools()</text>
+  <text x="1270" y="480" text-anchor="middle" font-size="11" fill="#92400e">messages + tools → response</text>
+
+  <!-- 箭头 -->
+  <line x1="280" y1="458" x2="340" y2="458" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <line x1="540" y1="458" x2="600" y2="458" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <line x1="840" y1="458" x2="900" y2="458" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow)"/>
+  <text x="870" y="452" text-anchor="middle" font-size="10" fill="#64748b">读/写</text>
+  <line x1="840" y1="440" x2="1180" y2="440" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow-orange)"/>
+  <text x="1010" y="433" text-anchor="middle" font-size="10" fill="#92400e">1. Thought: 调 LLM</text>
+  <line x1="1180" y1="478" x2="840" y2="478" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrow-orange)"/>
+  <text x="1010" y="492" text-anchor="middle" font-size="10" fill="#92400e">返回 text 或 tool_calls</text>
+
+  <!-- ReAct 循环说明 -->
+  <rect x="80" y="510" width="1340" height="40" rx="6" fill="url(#grad-gray)" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="100" y="534" font-size="11" fill="#475569">ReAct: Thought(调LLM) → 有 tool_calls? → Action(execute_tool) → Observation(结果加入Context) → 回到 Thought → 无 tool_calls → 返回最终文本</text>
+
+  <!-- ===================== ④ Tool 三层分离架构 ===================== -->
+  <rect x="40" y="585" width="1420" height="200" rx="12" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="60" y="610" font-size="15" font-weight="bold" fill="#334155">④ Tool 三层分离架构 (Schema → Registry → Executor)</text>
+
+  <!-- Schema 层 -->
+  <rect x="80" y="625" width="400" height="140" rx="10" fill="url(#grad-blue)" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="280" y="648" text-anchor="middle" font-size="14" font-weight="bold" fill="#1e40af">Schema 层 (agent/schema.py)</text>
+  <rect x="100" y="660" width="360" height="40" rx="6" fill="white" stroke="#93c5fd" stroke-width="1"/>
+  <text x="280" y="677" text-anchor="middle" font-size="12" font-weight="bold" fill="#1e40af">ToolDefinition</text>
+  <text x="280" y="694" text-anchor="middle" font-size="10" fill="#1e40af">name · description · parameters (JSON Schema) → 告诉 LLM 工具能做什么</text>
+  <rect x="100" y="710" width="360" height="40" rx="6" fill="white" stroke="#93c5fd" stroke-width="1"/>
+  <text x="280" y="727" text-anchor="middle" font-size="12" font-weight="bold" fill="#1e40af">ToolResult</text>
+  <text x="280" y="744" text-anchor="middle" font-size="10" fill="#1e40af">status=success/error · data/error · to_content() → 加入上下文</text>
+
+  <!-- Registry 层 -->
+  <rect x="540" y="625" width="400" height="140" rx="10" fill="url(#grad-green)" stroke="#86efac" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="740" y="648" text-anchor="middle" font-size="14" font-weight="bold" fill="#166534">Registry 层 (agent/registry.py)</text>
+  <rect x="560" y="660" width="360" height="55" rx="6" fill="white" stroke="#86efac" stroke-width="1"/>
+  <text x="740" y="677" text-anchor="middle" font-size="12" font-weight="bold" fill="#166534">ToolRegistry</text>
+  <text x="740" y="695" text-anchor="middle" font-size="10" fill="#166534">register(definition, handler) / get_definitions() / get_handler()</text>
+  <rect x="560" y="725" width="360" height="30" rx="6" fill="white" stroke="#86efac" stroke-width="1"/>
+  <text x="740" y="745" text-anchor="middle" font-size="10" fill="#166534">bootstrap.py 启动时注册所有工具</text>
+
+  <!-- Executor 层 -->
+  <rect x="1000" y="625" width="400" height="140" rx="10" fill="url(#grad-purple)" stroke="#d8b4fe" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="1200" y="648" text-anchor="middle" font-size="14" font-weight="bold" fill="#6b21a8">Executor 层 (agent/executor.py)</text>
+  <rect x="1020" y="660" width="360" height="55" rx="6" fill="white" stroke="#d8b4fe" stroke-width="1"/>
+  <text x="1200" y="677" text-anchor="middle" font-size="12" font-weight="bold" fill="#6b21a8">execute_tool(name, arguments)</text>
+  <text x="1200" y="695" text-anchor="middle" font-size="10" fill="#6b21a8">registry.get_handler → await handler(**args) → 始终返回 ToolResult</text>
+  <rect x="1020" y="725" width="360" height="30" rx="6" fill="white" stroke="#d8b4fe" stroke-width="1"/>
+  <text x="1200" y="745" text-anchor="middle" font-size="10" fill="#6b21a8">成功→success, 失败→error, 未注册→error（不抛异常）</text>
+
+  <!-- 三层箭头 -->
+  <line x1="480" y1="695" x2="540" y2="695" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <text x="510" y="688" text-anchor="middle" font-size="10" fill="#166534">绑定</text>
+  <line x1="940" y1="695" x2="1000" y2="695" stroke="#a855f7" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <text x="970" y="688" text-anchor="middle" font-size="10" fill="#6b21a8">调用</text>
+
+  <!-- ===================== ⑤ 工具实现总览 ===================== -->
+  <rect x="40" y="805" width="1420" height="350" rx="12" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="60" y="830" font-size="15" font-weight="bold" fill="#334155">⑤ 已实现工具总览 (agent/tools/)</text>
+
+  <!-- calculator -->
+  <rect x="80" y="845" width="430" height="290" rx="10" fill="url(#grad-blue)" stroke="#93c5fd" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="295" y="870" text-anchor="middle" font-size="14" font-weight="bold" fill="#1e40af">calculator.py</text>
+  <rect x="100" y="885" width="390" height="65" rx="6" fill="white" stroke="#93c5fd" stroke-width="1"/>
+  <text x="295" y="905" text-anchor="middle" font-size="12" font-weight="bold" fill="#1e40af">Schema: calculator_definition</text>
+  <text x="295" y="923" text-anchor="middle" font-size="10" fill="#1e40af">name="calculator" | parameters: expression (string)</text>
+  <text x="295" y="940" text-anchor="middle" font-size="10" fill="#1e40af">→ 告诉 LLM：输入数学表达式，返回计算结果</text>
+  <rect x="100" y="960" width="390" height="65" rx="6" fill="white" stroke="#86efac" stroke-width="1"/>
+  <text x="295" y="980" text-anchor="middle" font-size="12" font-weight="bold" fill="#166534">Function: calculator_handler(expression)</text>
+  <text x="295" y="998" text-anchor="middle" font-size="10" fill="#166534">AST 安全解析，支持 + - * / // % ** 和 sqrt/abs/sin 等</text>
+  <text x="295" y="1015" text-anchor="middle" font-size="10" fill="#166534">return {"expression": "...", "result": 42}</text>
+  <rect x="100" y="1035" width="390" height="80" rx="6" fill="white" stroke="#fcd34d" stroke-width="1"/>
+  <text x="295" y="1055" text-anchor="middle" font-size="12" font-weight="bold" fill="#92400e">注册位置</text>
+  <text x="295" y="1075" text-anchor="middle" font-size="10" fill="#92400e">bootstrap.py → register_all_tools()</text>
+  <text x="295" y="1093" text-anchor="middle" font-size="10" fill="#92400e">registry.register(calculator_definition, calculator_handler)</text>
+  <text x="295" y="1111" text-anchor="middle" font-size="10" fill="#92400e">main.py lifespan 启动时调用一次</text>
+
+  <!-- analyze_excel -->
+  <rect x="540" y="845" width="430" height="290" rx="10" fill="url(#grad-green)" stroke="#86efac" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="755" y="870" text-anchor="middle" font-size="14" font-weight="bold" fill="#166534">analyze_excel.py</text>
+  <rect x="560" y="885" width="390" height="65" rx="6" fill="white" stroke="#93c5fd" stroke-width="1"/>
+  <text x="755" y="905" text-anchor="middle" font-size="12" font-weight="bold" fill="#1e40af">Schema: analyze_excel_definition</text>
+  <text x="755" y="923" text-anchor="middle" font-size="10" fill="#1e40af">file_id + analysis_type: overview/statistics/group_by</text>
+  <text x="755" y="940" text-anchor="middle" font-size="10" fill="#1e40af">→ 告诉 LLM：分析 Excel 的三种能力</text>
+  <rect x="560" y="960" width="390" height="65" rx="6" fill="white" stroke="#86efac" stroke-width="1"/>
+  <text x="755" y="980" text-anchor="middle" font-size="12" font-weight="bold" fill="#166534">Function: analyze_excel_handler</text>
+  <text x="755" y="998" text-anchor="middle" font-size="10" fill="#166534">1. overview: 工作表/列名/行列数/缺失值/样例</text>
+  <text x="755" y="1015" text-anchor="middle" font-size="10" fill="#166534">2. statistics: sum/mean/max/min/count</text>
+  <text x="755" y="1032" text-anchor="middle" font-size="10" fill="#166534">3. group_by: 分组聚合 → 排名</text>
+  <rect x="560" y="1035" width="390" height="80" rx="6" fill="white" stroke="#fcd34d" stroke-width="1"/>
+  <text x="755" y="1055" text-anchor="middle" font-size="12" font-weight="bold" fill="#92400e">文件读取流程</text>
+  <text x="755" y="1075" text-anchor="middle" font-size="10" fill="#92400e">handler 接收 file_id → AsyncSessionLocal 查 File 表</text>
+  <text x="755" y="1093" text-anchor="middle" font-size="10" fill="#92400e">→ Path(storage_path) → pandas.read_excel()</text>
+  <text x="755" y="1111" text-anchor="middle" font-size="10" fill="#92400e">→ 限制 MAX_ROWS=20000 防止大文件阻塞</text>
+
+  <!-- generate_chart -->
+  <rect x="1000" y="845" width="430" height="290" rx="10" fill="url(#grad-purple)" stroke="#d8b4fe" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="1215" y="870" text-anchor="middle" font-size="14" font-weight="bold" fill="#6b21a8">generate_chart.py</text>
+  <rect x="1020" y="885" width="390" height="65" rx="6" fill="white" stroke="#93c5fd" stroke-width="1"/>
+  <text x="1215" y="905" text-anchor="middle" font-size="12" font-weight="bold" fill="#1e40af">Schema: generate_chart_definition</text>
+  <text x="1215" y="923" text-anchor="middle" font-size="10" fill="#1e40af">file_id + chart_type: bar/line/pie</text>
+  <text x="1215" y="940" text-anchor="middle" font-size="10" fill="#1e40af">+ category_column + value_column + aggregation</text>
+  <rect x="1020" y="960" width="390" height="65" rx="6" fill="white" stroke="#86efac" stroke-width="1"/>
+  <text x="1215" y="980" text-anchor="middle" font-size="12" font-weight="bold" fill="#166534">Function: generate_chart_handler</text>
+  <text x="1215" y="998" text-anchor="middle" font-size="10" fill="#166534">1. 读 Excel → pandas 分组聚合 → 整理横纵轴</text>
+  <text x="1215" y="1015" text-anchor="middle" font-size="10" fill="#166534">2. 生成 ECharts option JSON（不生成图片）</text>
+  <text x="1215" y="1032" text-anchor="middle" font-size="10" fill="#166534">3. 返回 echarts_option → 前端 Vue+ECharts 渲染</text>
+  <rect x="1020" y="1035" width="390" height="80" rx="6" fill="white" stroke="#fcd34d" stroke-width="1"/>
+  <text x="1215" y="1055" text-anchor="middle" font-size="12" font-weight="bold" fill="#92400e">返回结构</text>
+  <text x="1215" y="1075" text-anchor="middle" font-size="10" fill="#92400e">{ chart_type, title, echarts_option }</text>
+  <text x="1215" y="1093" text-anchor="middle" font-size="10" fill="#92400e">echarts_option 含 title/tooltip/xAxis/yAxis/series</text>
+  <text x="1215" y="1111" text-anchor="middle" font-size="10" fill="#92400e">前端 setOption(option) 直接渲染</text>
+
+  <!-- ===================== 底部：完整调用链路 ===================== -->
+  <rect x="40" y="1165" width="1420" height="0" rx="0" fill="none"/>
+</svg>

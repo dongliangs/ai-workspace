@@ -11,6 +11,9 @@ from contextlib import asynccontextmanager
 from schemas.common import ApiResponse
 from api.auth import router as auth_router
 from api.conversation import router as conversation_router
+from api.file import router as file_router
+from api.agent import router as agent_router
+from agent.bootstrap import register_all_tools
 #导入数据库engine
 from db.session import engine
 
@@ -18,6 +21,8 @@ from db.session import engine
 from models.base import Base
 #导入user 模型
 from models.user import User
+#导入 file 模型，确保 create_all 时建表
+from models.file import File
 
 
 
@@ -32,6 +37,7 @@ async def create_tables():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_tables()
+    register_all_tools()  # 注册 Agent 工具到全局 registry
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -40,6 +46,8 @@ app = FastAPI(lifespan=lifespan)
 # 所有的auth接口签名自动加 /api
 app.include_router(auth_router, prefix="/api")
 app.include_router(conversation_router, prefix="/api")
+app.include_router(file_router, prefix="/api")
+app.include_router(agent_router, prefix="/api")
 
 #统一处理HttpException
 @app.exception_handler(HTTPException)

@@ -17,30 +17,38 @@ else:
     )
 
 
-async def chat_with_llm(messages: list[dict]) -> str:
+async def chat_with_tools(messages: list[dict], tools: list[dict]):
     """
-    调用 LLM，返回文本结果。
+    调用 LLM（Chat Completions API），携带工具定义，返回完整响应。
 
-    messages 示例：
+    用于 Agent Loop：模型可以返回文本，也可以返回 tool_calls。
+    响应格式（OpenAI Chat Completions）：
+        response.choices[0].message.content      → 文本内容（可能为 None）
+        response.choices[0].message.tool_calls    → 工具调用列表（可能为 None）
 
-    [
-        {
-            "role": "user",
-            "content": "你好"
-        },
-        {
-            "role": "assistant",
-            "content": "你好，有什么可以帮助你的？"
-        }
-    ]
+    Args:
+        messages: 完整对话上下文（system + history + user + tool results）
+        tools:    OpenAI tools 格式的工具定义列表
+
+    Returns:
+        ChatCompletion 响应对象
     """
-
-    response = await client.responses.create(
+    response = await client.chat.completions.create(
         model=settings.deepseek_model,
-        input=messages,
+        messages=messages,
+        tools=tools if tools else None,
     )
+    return response
 
-    return response.output_text
+
+# async def chat_with_llm_stream(messages: list[dict]):
+#
+#     response = await client.responses.create(
+#         model=settings.deepseek_model,
+#         input=messages,
+#     )
+#
+#     return response.output_text
 
 
 async def chat_with_llm_stream(messages: list[dict]):

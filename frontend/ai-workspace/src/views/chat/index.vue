@@ -161,36 +161,13 @@
 
     <!-- 输入栏 -->
     <div class="chat-input-bar">
-      <!-- 附件 chip -->
-      <div
-        v-if="attachments.length"
-        class="attach-chips"
-      >
-        <span
-          v-for="a in attachments"
-          :key="a.id"
-          class="attach-chip"
-          :class="{ 'is-error': a.status === 'error' }"
-        >
-          <FileSpreadsheet class="w-3.5 h-3.5 shrink-0" />
-          <span class="attach-name truncate">{{ a.name }}</span>
-          <!-- 上传中显示进度，完成显示大小 -->
-          <span class="attach-meta">
-            <template v-if="a.status === 'uploading'">
-              {{ a.progress }}%
-            </template>
-            <template v-else>{{ a.size }}</template>
-          </span>
-          <button
-            type="button"
-            class="attach-remove"
-            :disabled="a.status === 'uploading'"
-            @click="removeAttachment(a.id)"
-          >
-            <X class="w-3 h-3" />
-          </button>
-        </span>
-      </div>
+      <!-- 通用文件上传组件：管理附件 chip 列表 + 隐藏 input + 上传逻辑 -->
+      <FileUploader
+        ref="uploaderRef"
+        v-model:files="attachments"
+        :disabled="loading"
+        @uploading-change="(v: boolean) => (hasUploading = v)"
+      />
 
       <!-- 胶囊形输入框：+ 加号 | textarea | 圆形发送按钮 -->
       <div class="input-pill">
@@ -285,14 +262,6 @@
       <p class="disclaimer">
         AI 生成内容仅供参考
       </p>
-
-      <input
-        ref="fileInput"
-        type="file"
-        multiple
-        hidden
-        @change="onFileChange"
-      >
     </div>
 
     <!-- 点击外部关闭工具弹出层 -->
@@ -314,7 +283,6 @@ import {
   Square,
   Copy,
   RefreshCw,
-  X,
   BarChart2,
   FileText,
   PieChart,
@@ -337,12 +305,12 @@ import {
   getConversation,
   type ConversationType,
 } from '@/api/conversation'
-import { uploadFile } from '@/api/file'
 import type { ChatMessageDTO } from '@/api/conversation'
-import type { UploadProgress } from '@/utils/request'
 import MarkdownContent from '@/components/chat/MarkdownContent.vue'
 import AgentMessageBubble from '@/components/chat/AgentMessageBubble.vue'
 import type { AgentStep, ToolInvocation } from '@/components/chat/AgentMessageBubble.vue'
+import FileUploader from '@/components/common/FileUploader.vue'
+import type { UploadFile } from '@/components/common/FileUploader.vue'
 
 /* ------------------------------------------------------------------ */
 /*  RobotMark：欢迎态 logo 与 AI 头像复用的机器人 SVG                 */
@@ -376,16 +344,6 @@ const RobotMark = defineComponent({
 /* ------------------------------------------------------------------ */
 /*  类型定义                                                          */
 /* ------------------------------------------------------------------ */
-interface Attachment {
-  id: number
-  name: string
-  size: string
-  file_id?: number
-  status: 'uploading' | 'done' | 'error'
-  progress: number
-  rawSize: number
-}
-
 interface MessageAttachment {
   id: number
   name: string
@@ -432,7 +390,8 @@ const currentType = computed<ConversationType>(() =>
 const messages = ref<ChatMessage[]>([])
 const input = ref('')
 const loading = ref(false)
-const attachments = ref<Attachment[]>([])
+const attachments = ref<UploadFile[]>([])
+const hasUploading = ref(false)
 const cancelled = ref(false)
 const toolPopoverOpen = ref(false)
 const selectedTools = ref<string[]>([])
@@ -441,7 +400,7 @@ let abortCtrl: AbortController | null = null
 
 const bodyRef = ref<HTMLElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
+const uploaderRef = ref<InstanceType<typeof FileUploader> | null>(null)
 
 // 自增 id，避免用 index 作 key 在删除/重排时复用错乱。
 let _id = 0
@@ -503,8 +462,7 @@ const placeholder = computed(() =>
 
 /** 是否可发送：有内容且无上传中的附件 */
 const canSend = computed(() => {
-  const hasUploading = attachments.value.some((a) => a.status === 'uploading')
-  if (hasUploading) return false
+  if (hasUploading.value) return false
   return input.value.trim().length > 0
 })
 
@@ -539,6 +497,7 @@ watch(
     if (id == null) {
       messages.value = []
       attachments.value = []
+      hasUploading.value = false
       input.value = ''
       return
     }
@@ -550,6 +509,7 @@ watch(
     // 切换到已有会话：清空当前消息并加载历史
     messages.value = []
     attachments.value = []
+    hasUploading.value = false
     input.value = ''
     loadConversation(id)
   },
@@ -626,7 +586,7 @@ async function onSend(text?: string) {
   if (!content || loading.value) return
 
   // 有附件仍在上传中，阻止发送
-  if (attachments.value.some((a) => a.status === 'uploading')) {
+  if (hasUploading.value) {
     ElMessage.warning('文件上传中，请稍候...')
     return
   }
@@ -646,7 +606,7 @@ async function onSend(text?: string) {
   // 用户消息（含附件预览）
   const userAttachments: MessageAttachment[] = attachments.value
     .filter((a) => a.status === 'done')
-    .map((a) => ({ id: a.id, name: a.name, size: a.size }))
+    .map((a) => ({ id: a.uid, name: a.name, size: a.size }))
 
   messages.value.push({
     id: uid(),
@@ -657,6 +617,7 @@ async function onSend(text?: string) {
   })
   input.value = ''
   attachments.value = []
+  hasUploading.value = false
   autoResize()
   scrollToBottom()
 
@@ -690,6 +651,7 @@ async function runReply(
 
   abortCtrl = new AbortController()
 
+  // 目前Agent 模式下才支持文件分析
   if (isAgentMode.value) {
     await runAgentReply(conversationId, userText, fileIds, idx)
   } else {
@@ -890,7 +852,7 @@ async function onRegenerate(m: ChatMessage) {
   if (loading.value) return
   const idx = messages.value.findIndex((x) => x.id === m.id)
   let userText = ''
-  let fileIds: number[] = []
+  const fileIds: number[] = []
   for (let i = idx - 1; i >= 0; i--) {
     if (messages.value[i].role === 'user') {
       userText = messages.value[i].content
@@ -916,58 +878,10 @@ async function onCopy(m: ChatMessage) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  附件 / 文件上传                                                   */
+/*  附件 / 文件上传（使用通用 FileUploader 组件）                     */
 /* ------------------------------------------------------------------ */
 function triggerFile() {
-  fileInput.value?.click()
-}
-
-async function onFileChange(e: Event) {
-  const target = e.target as HTMLInputElement
-  if (!target.files) return
-  for (const f of Array.from(target.files)) {
-    const attachId = uid()
-    const attach: Attachment = {
-      id: attachId,
-      name: f.name,
-      size: formatSize(f.size),
-      rawSize: f.size,
-      status: 'uploading',
-      progress: 0,
-    }
-    attachments.value.push(attach)
-
-    // 真实上传
-    try {
-      const res = await uploadFile(f, (p: UploadProgress) => {
-        const item = attachments.value.find((a) => a.id === attachId)
-        if (item) item.progress = p.percent
-      })
-      const item = attachments.value.find((a) => a.id === attachId)
-      if (item) {
-        item.status = 'done'
-        item.file_id = res.id
-        item.progress = 100
-      }
-    } catch {
-      const item = attachments.value.find((a) => a.id === attachId)
-      if (item) {
-        item.status = 'error'
-      }
-      ElMessage.error(`文件 ${f.name} 上传失败`)
-    }
-  }
-  target.value = '' // 允许重复选同一文件
-}
-
-function removeAttachment(id: number) {
-  attachments.value = attachments.value.filter((a) => a.id !== id)
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)}MB`
+  uploaderRef.value?.openPicker()
 }
 
 /* ------------------------------------------------------------------ */
@@ -1245,50 +1159,6 @@ function formatSize(bytes: number): string {
   padding: 0 16px 24px;
   position: relative;
 }
-.attach-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.attach-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 240px;
-  padding: 6px 10px;
-  border-radius: var(--aws-radius-md);
-  background: var(--aws-card);
-  border: 1px solid var(--aws-border);
-  font-size: var(--aws-text-xs);
-  color: var(--aws-foreground);
-  transition: border-color 0.15s;
-}
-.attach-chip.is-error {
-  border-color: #ef4444;
-  color: #ef4444;
-}
-.attach-name {
-  max-width: 140px;
-}
-.attach-meta {
-  color: var(--aws-muted);
-}
-.attach-remove {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--aws-muted);
-  transition: color 0.15s;
-}
-.attach-remove:hover:not(:disabled) {
-  color: var(--aws-primary);
-}
-.attach-remove:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
 /* 胶囊形输入框：回形针 | textarea | 圆形发送按钮 */
 .input-pill {
   display: flex;

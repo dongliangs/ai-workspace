@@ -9,7 +9,7 @@ from models.base import Base
 #会话类型
 class ConversationType(str,Enum):
     CHAT="chat",
-    FILE="file",
+    # FILE="file",
     KNOWLEDGE="knowledge",
     AGENT="agent"
 
@@ -45,7 +45,7 @@ class Conversation(Base):
         nullable=False,
         default=ConversationType.CHAT,
         comment="会话类型"
-        # 四种类型 chat / file / knowledge / agent
+        # 三种类型 chat / knowledge / agent，均支持文件上传
     )
     #创建时间
     created_at: Mapped[datetime] = mapped_column(

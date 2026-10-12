@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import get_db, AsyncSessionLocal
 from models.conversation import Conversation
 from models.message import Message, MessageRole
+from models.file import File
 from models.user import User
 from schemas.common import ApiResponse
 from schemas.conversation import (
@@ -18,6 +19,7 @@ from schemas.conversation import (
     MessageResponse,
 )
 from services.llm_service import chat_with_llm_stream
+from services.file_service import associate_files_with_message
 from core.security import get_current_user
 from datetime import datetime
 
@@ -189,10 +191,27 @@ async def get_conversation_messages(
 
     messages = result.scalars().all()
 
+    # 查询消息关联的文件，按 message_id 分组
+    message_ids = [m.id for m in messages]
+    files_by_message: dict[int, list[int]] = {}
+    if message_ids:
+        file_result = await db.execute(
+            select(File).where(File.message_id.in_(message_ids))
+        )
+        for f in file_result.scalars().all():
+            files_by_message.setdefault(f.message_id, []).append(f.id)
+
     return ApiResponse(
         code=0,
         data=[
-            MessageResponse.model_validate(message)
+            MessageResponse(
+                id=message.id,
+                conversation_id=message.conversation_id,
+                role=message.role,
+                content=message.content,
+                created_at=message.created_at,
+                file_ids=files_by_message.get(message.id, []),
+            )
             for message in messages
         ],
         message="获取消息成功"
@@ -316,6 +335,17 @@ async def create_message(
     db.add(user_message)
     conversation.updated_at = datetime.utcnow()
     await db.commit()
+
+    # 4.1 关联文件（如果消息携带了 file_ids）
+    # 逐个校验文件归属当前用户，然后回写 message_id 和 conversation_id
+    if message_data.file_ids:
+        await associate_files_with_message(
+            file_ids=message_data.file_ids,
+            message_id=user_message.id,
+            conversation_id=conversation_id,
+            user_id=current_user.id,
+            db=db,
+        )
 
     # 5.流式返回 AI 回复
     return StreamingResponse(

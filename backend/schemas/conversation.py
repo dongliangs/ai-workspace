@@ -31,7 +31,10 @@ class ConversationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class MessageCreate(BaseModel):
+    # 消息内容
     content: str
+    # 携带的文件 id 列表（可选），三种会话类型都可携带
+    file_ids: list[int] | None = None
 
 class MessageResponse(BaseModel):
     id: int
@@ -39,5 +42,7 @@ class MessageResponse(BaseModel):
     role:MessageRole
     content: str
     created_at: datetime
+    # 关联的文件 id 列表
+    file_ids: list[int] = []
 
     model_config = ConfigDict(from_attributes=True)
