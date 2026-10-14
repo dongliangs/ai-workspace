@@ -562,6 +562,12 @@ async function loadMessages(conversationId: number) {
       role: m.role as 'user' | 'assistant',
       content: m.content,
       time: formatTime(m.created_at),
+      tools: m.tool_results?.map((tr, i) => ({
+        id: Date.now() + i,
+        tool: tr.tool,
+        status: tr.status as 'running' | 'success' | 'error',
+        result: tr.result,
+      })),
     }))
     scrollToBottom()
   } catch {
@@ -891,12 +897,11 @@ function triggerFile() {
 </script>
 
 <style scoped>
-/* 整体容器：用负边距抵消 AppLayout .app-stage 的 24px padding */
+/* 整体容器：chat 路由下 .app-stage 无 padding（router meta.flush），height:100% 正好填满视口 */
 .chat-page {
   display: flex;
   flex-direction: column;
   height: 100%;
-  margin: -24px;
   overflow: hidden;
   position: relative;
   background: var(--aws-background);
@@ -990,7 +995,7 @@ function triggerFile() {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 24px 16px 8px;
+  padding: 24px 16px 24px;
   max-width: 820px;
   margin: 0 auto;
   width: 100%;
@@ -1156,8 +1161,8 @@ function triggerFile() {
   width: 100%;
   max-width: 768px;
   margin: 0 auto;
-  padding: 0 16px 24px;
-  position: relative;
+  /* 底部 10px：flex-col 布局下输入栏天然贴住页面底部 */
+  padding: 0 16px 10px;
 }
 /* 胶囊形输入框：回形针 | textarea | 圆形发送按钮 */
 .input-pill {

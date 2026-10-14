@@ -34,11 +34,13 @@ const router = createRouter({
           path: 'chat',
           name: 'Chat',
           component: () => import('@/views/chat/index.vue'),
+          meta: { flush: true },
         },
         {
           path: 'agent',
           name: 'Agent',
           component: () => import('@/views/chat/index.vue'),
+          meta: { flush: true },
         },
       ],
     },

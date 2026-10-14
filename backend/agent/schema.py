@@ -102,9 +102,25 @@ class ToolResult:
 
         LLM 通过这个字符串理解工具执行了什么、返回了什么数据。
         成功时序列化 data，失败时返回错误说明。
+
+        特殊处理：generate_chart 返回的 echarts_option 仅供前端渲染，
+        不需要传给 LLM（否则 LLM 会把 JSON 原样吐到回答里），
+        这里截断为摘要。
         """
         if self.status == "success":
-            return json.dumps(self.data, ensure_ascii=False)
+            data = self.data
+            # 截断图表工具的 echarts_option，只留摘要信息
+            if (
+                isinstance(data, dict)
+                and "echarts_option" in data
+            ):
+                summary = {k: v for k, v in data.items() if k != "echarts_option"}
+                summary["note"] = (
+                    "ECharts 配置已生成，前端会自动渲染图表。"
+                    "请在回答中描述图表内容和关键发现，不要输出 JSON 配置。"
+                )
+                return json.dumps(summary, ensure_ascii=False)
+            return json.dumps(data, ensure_ascii=False)
         return f"工具执行失败: {self.error}"
 
     def to_dict(self) -> dict[str, Any]:

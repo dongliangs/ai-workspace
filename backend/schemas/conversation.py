@@ -44,5 +44,7 @@ class MessageResponse(BaseModel):
     created_at: datetime
     # 关联的文件 id 列表
     file_ids: list[int] = []
+    # Agent 工具执行结果（刷新页面后恢复图表/数据）
+    tool_results: list | None = None
 
     model_config = ConfigDict(from_attributes=True)

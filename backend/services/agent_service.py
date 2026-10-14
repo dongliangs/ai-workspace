@@ -57,23 +57,31 @@ async def stream_agent_response(
     """
     runtime = AgentRuntime()
     full_content: list[str] = []
+    tool_results_data: list[dict] = []
 
     try:
         async for event in runtime.run(context, tool_names):
             if event["type"] == "text":
                 full_content.append(event["content"])
+            elif event["type"] == "tool_result":
+                tool_results_data.append({
+                    "tool": event.get("tool"),
+                    "status": event.get("status"),
+                    "result": event.get("result"),
+                })
             yield _sse(event)
     except Exception as e:
         logger.exception("Agent 执行异常")
         yield _sse({"type": "error", "message": f"Agent 执行失败: {e}"})
         return
 
-    # 流结束，保存完整 AI 消息并更新会话时间
+    # 流结束，保存完整 AI 消息（含工具结果）并更新会话时间
     async with AsyncSessionLocal() as sdb:
         assistant_message = Message(
             conversation_id=conversation_id,
             role=MessageRole.ASSISTANT,
             content="".join(full_content),
+            tool_results=tool_results_data if tool_results_data else None,
         )
         sdb.add(assistant_message)
         await sdb.execute(
@@ -89,4 +97,5 @@ async def stream_agent_response(
         "type": "done",
         "message_id": message_id,
         "conversation_id": conversation_id,
+        "tool_results": tool_results_data if tool_results_data else None,
     })

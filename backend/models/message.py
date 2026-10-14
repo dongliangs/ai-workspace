@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 
 from pydantic.color import Color
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Integer, Text
+from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Integer, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
@@ -48,6 +48,13 @@ class Message(Base):
         Text,
         nullable=False,
         comment="消息内容"
+    )
+
+    #工具执行结果（Agent 模式下持久化 tool_result 事件，刷新页面不丢失）
+    tool_results: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="工具执行结果（JSON 数组，每项含 tool/status/result）"
     )
 
     #创建时间

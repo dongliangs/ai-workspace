@@ -3,13 +3,6 @@
     <!-- 执行步骤列表 -->
     <AgentSteps :steps="steps" />
 
-    <!-- 工具调用卡片 -->
-    <ToolCard
-      v-for="t in tools"
-      :key="t.id"
-      :tool="t"
-    />
-
     <!-- 打字机思考态（无内容且 pending） -->
     <span
       v-if="pending && !content"
@@ -22,6 +15,13 @@
     <MarkdownContent
       v-else-if="content"
       :content="content"
+    />
+
+    <!-- 工具调用卡片（图表渲染在正文下方） -->
+    <ToolCard
+      v-for="t in tools"
+      :key="t.id"
+      :tool="t"
     />
   </div>
 </template>

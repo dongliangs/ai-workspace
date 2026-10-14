@@ -27,6 +27,7 @@ export interface ChatMessageDTO {
   role: 'user' | 'assistant' | 'system'
   content: string
   created_at: string
+  tool_results?: Array<{ tool: string; status: string; result?: unknown }>
 }
 
 interface itemsType {
@@ -117,7 +118,7 @@ export type AgentEvent =
   | { type: 'text'; content: string }
   | { type: 'tool_start'; tool: string; arguments?: Record<string, unknown> }
   | { type: 'tool_result'; tool: string; status: 'success' | 'error'; result?: unknown }
-  | { type: 'done'; message_id: number }
+  | { type: 'done'; message_id: number; tool_results?: Array<{ tool: string; status: string; result?: unknown }> }
 
 /**
  * Agent 流式发送消息：后端 Agent Runtime 执行工具调用，通过 SSE 推送事件。
@@ -169,7 +170,11 @@ export async function* sendAgentMessageStream(
           result: obj.result,
         }
       } else if (eventType === 'done') {
-        yield { type: 'done', message_id: (obj.message_id as number) ?? 0 }
+        yield {
+          type: 'done',
+          message_id: (obj.message_id as number) ?? 0,
+          tool_results: obj.tool_results as Array<{ tool: string; status: string; result?: unknown }> | undefined,
+        }
       }
       // 未知事件类型忽略
     } catch {
