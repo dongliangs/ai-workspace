@@ -124,10 +124,33 @@
                 <i /><i /><i />
               </span>
               <MarkdownContent
-                v-else
+                v-else-if="m.content"
                 :content="m.content"
               />
             </div>
+
+            <!-- 流式异常提示条（chat/Agent 通用）：断网/流中断/超时时保留已接收内容并提供重试 -->
+            <div
+              v-if="m.error"
+              class="stream-error-bar"
+            >
+              <AlertCircle class="w-4 h-4 shrink-0" />
+              <span class="stream-error-text">{{ m.error }}</span>
+              <button
+                type="button"
+                class="stream-retry-btn"
+                :disabled="loading"
+                @click="onRegenerate(m)"
+              >
+                <RefreshCw class="w-3.5 h-3.5" />
+                <span>重试</span>
+              </button>
+            </div>
+            <!-- 用户停止生成且无任何内容时的兜底提示 -->
+            <span
+              v-else-if="m.role === 'assistant' && !m.pending && !m.content"
+              class="stopped-hint"
+            >已停止生成</span>
 
             <div class="msg-meta">
               <span class="msg-time">{{ m.time }}</span>
@@ -161,6 +184,15 @@
 
     <!-- 输入栏 -->
     <div class="chat-input-bar">
+      <!-- 断网警告条：网络恢复后自动消失 -->
+      <div
+        v-if="offline"
+        class="offline-banner"
+      >
+        <WifiOff class="w-3.5 h-3.5 shrink-0" />
+        <span>网络连接已断开，消息无法发送</span>
+      </div>
+
       <!-- 通用文件上传组件：管理附件 chip 列表 + 隐藏 input + 上传逻辑 -->
       <FileUploader
         ref="uploaderRef"
@@ -274,7 +306,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted, type Component, type CSSProperties } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount, type Component, type CSSProperties } from 'vue'
 import { h, defineComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import {
@@ -283,6 +315,8 @@ import {
   Square,
   Copy,
   RefreshCw,
+  AlertCircle,
+  WifiOff,
   BarChart2,
   FileText,
   PieChart,
@@ -306,6 +340,7 @@ import {
   type ConversationType,
 } from '@/api/conversation'
 import type { ChatMessageDTO } from '@/api/conversation'
+import { StreamError } from '@/utils/request'
 import MarkdownContent from '@/components/chat/MarkdownContent.vue'
 import AgentMessageBubble from '@/components/chat/AgentMessageBubble.vue'
 import type { AgentStep, ToolInvocation } from '@/components/chat/AgentMessageBubble.vue'
@@ -355,7 +390,10 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   time: string
+  /** 流式生成中（打字机/工具运行态） */
   pending?: boolean
+  /** 流式异常（断网/超时/HTTP错误）时的提示文案；有值时气泡下方渲染错误条 + 重试按钮 */
+  error?: string
   steps?: AgentStep[]
   tools?: ToolInvocation[]
   attachments?: MessageAttachment[]
@@ -401,6 +439,17 @@ let abortCtrl: AbortController | null = null
 const bodyRef = ref<HTMLElement | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const uploaderRef = ref<InstanceType<typeof FileUploader> | null>(null)
+
+/** 网络状态：断网时输入栏上方显示警告条，并阻止发送新消息 */
+const offline = ref(typeof navigator !== 'undefined' ? !navigator.onLine : false)
+function handleOnline() {
+  offline.value = false
+  ElMessage.success('网络已恢复')
+}
+function handleOffline() {
+  offline.value = true
+  ElMessage.warning('网络连接已断开，请检查网络设置')
+}
 
 // 自增 id，避免用 index 作 key 在删除/重排时复用错乱。
 let _id = 0
@@ -521,6 +570,10 @@ watch(
  * 2. 否则如果已有 currentId（从 sidebar 直接点进会话），加载该会话的信息与历史消息
  */
 onMounted(() => {
+  // 全局网络状态监听：断网/恢复时更新警告条并 toast 提示
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+
   const pending = chatStore.pendingPrompt
   if (pending) {
     chatStore.pendingPrompt = null
@@ -528,6 +581,11 @@ onMounted(() => {
   } else if (chatStore.currentId != null) {
     loadConversation(chatStore.currentId)
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', handleOnline)
+  window.removeEventListener('offline', handleOffline)
 })
 
 /**
@@ -590,6 +648,12 @@ function formatTime(iso: string): string {
 async function onSend(text?: string) {
   const content = (text ?? input.value).trim()
   if (!content || loading.value) return
+
+  // 断网预检：提前拦截，不发注定失败的请求
+  if (offline.value) {
+    ElMessage.error('网络连接已断开，请检查网络后重试')
+    return
+  }
 
   // 有附件仍在上传中，阻止发送
   if (hasUploading.value) {
@@ -665,6 +729,29 @@ async function runReply(
   }
 }
 
+/**
+ * 流式异常 → 用户可读文案。
+ * StreamError（断网/流中断/超时/HTTP错误）自带针对性 message；
+ * 其他未知异常统一兜底，避免把技术性错误信息直接抛给用户。
+ */
+function streamErrorMessage(err: unknown): string {
+  return err instanceof StreamError ? err.message : '请求失败，请重试'
+}
+
+/** Agent 消息收尾：运行中的步骤标记 done、工具卡片标记指定终态（success/stopped） */
+function finalizeAgentMessage(msg: ChatMessage, toolStatus: 'success' | 'stopped') {
+  if (msg.steps) {
+    msg.steps.forEach((s) => {
+      if (s.status === 'running') s.status = 'done'
+    })
+  }
+  if (msg.tools) {
+    msg.tools.forEach((t) => {
+      if (t.status === 'running') t.status = toolStatus
+    })
+  }
+}
+
 /** 普通 Chat 流式回复 */
 async function runChatReply(
   conversationId: number,
@@ -684,10 +771,14 @@ async function runChatReply(
       messages.value[idx].time = now()
     }
   } catch (err) {
+    const msg = messages.value[idx]
+    msg.pending = false
+    msg.time = now()
     if (err instanceof DOMException && err.name === 'AbortError') {
-      messages.value[idx].pending = false
+      // 用户主动中断：保留已接收内容（空内容时模板显示"已停止生成"）
     } else {
-      messages.value.splice(idx, 1)
+      // 断网/流中断/超时/HTTP错误：保留已接收的部分内容，标记错误供错误条展示
+      msg.error = streamErrorMessage(err)
     }
   } finally {
     loading.value = false
@@ -787,34 +878,19 @@ async function runAgentReply(
       const msg = messages.value[idx]
       msg.pending = false
       msg.time = now()
-      if (msg.steps) {
-        msg.steps.forEach((s) => {
-          if (s.status === 'running') s.status = 'done'
-        })
-      }
-      if (msg.tools) {
-        msg.tools.forEach((t) => {
-          if (t.status === 'running') t.status = 'success'
-        })
-      }
+      finalizeAgentMessage(msg, 'success')
     }
   } catch (err) {
+    const msg = messages.value[idx]
+    msg.pending = false
+    msg.time = now()
+    // 中断/异常都要把运行中的步骤与工具收尾，避免卡片一直转圈
+    finalizeAgentMessage(msg, 'stopped')
     if (err instanceof DOMException && err.name === 'AbortError') {
-      // 用户中断：把运行中的 tool 卡片标记为 stopped
-      const msg = messages.value[idx]
-      msg.pending = false
-      if (msg.tools) {
-        msg.tools.forEach((t) => {
-          if (t.status === 'running') t.status = 'stopped'
-        })
-      }
-      if (msg.steps) {
-        msg.steps.forEach((s) => {
-          if (s.status === 'running') s.status = 'done'
-        })
-      }
+      // 用户主动中断：保留已接收内容
     } else {
-      messages.value.splice(idx, 1)
+      // 断网/流中断/超时/HTTP错误：保留已接收内容，标记错误供错误条展示
+      msg.error = streamErrorMessage(err)
     }
   } finally {
     loading.value = false
@@ -1066,7 +1142,7 @@ function triggerFile() {
 .bubble {
   padding: 10px 14px;
   border-radius: var(--aws-radius-lg);
-  font-size: var(--aws-text-sm);
+  font-size: var(--aws-text-base);
   line-height: var(--aws-leading-relaxed);
   word-break: break-word;
 }
@@ -1155,6 +1231,68 @@ function triggerFile() {
   }
 }
 
+/* 流式异常提示条：浅红底 + 错误图标 + 文案 + 重试按钮 */
+.stream-error-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--aws-radius-md);
+  background: color-mix(in srgb, #ef4444 8%, var(--aws-card));
+  border: 1px solid color-mix(in srgb, #ef4444 25%, var(--aws-border));
+  color: #ef4444;
+  font-size: var(--aws-text-xs);
+}
+.stream-error-text {
+  min-width: 0;
+  flex: 1;
+}
+.stream-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--aws-radius-sm);
+  border: 1px solid color-mix(in srgb, #ef4444 35%, var(--aws-border));
+  background: var(--aws-card);
+  color: #ef4444;
+  font-size: var(--aws-text-xs);
+  transition: background-color 0.15s;
+}
+.stream-retry-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, #ef4444 10%, var(--aws-card));
+}
+.stream-retry-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 用户停止生成且无内容时的兜底提示 */
+.stopped-hint {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: var(--aws-text-xs);
+  color: var(--aws-placeholder);
+  font-style: italic;
+}
+
+/* 断网警告条（输入栏上方） */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  border-radius: var(--aws-radius-md);
+  background: color-mix(in srgb, #f59e0b 10%, var(--aws-card));
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, var(--aws-border));
+  color: #b45309;
+  font-size: var(--aws-text-xs);
+}
+
 /* ---------------- 输入栏 ---------------- */
 .chat-input-bar {
   flex: none;
@@ -1213,7 +1351,7 @@ function triggerFile() {
   padding: 8px 0;
   border: none;
   background: transparent;
-  font-size: var(--aws-text-sm);
+  font-size: var(--aws-text-base);
   color: var(--aws-foreground);
   line-height: var(--aws-leading-relaxed);
   resize: none;

@@ -19,6 +19,7 @@ from agent.registry import registry
 from agent.tools.calculator import calculator_definition, calculator_handler
 from agent.tools.analyze_excel import analyze_excel_definition, analyze_excel_handler
 from agent.tools.generate_chart import generate_chart_definition, generate_chart_handler
+from agent.tools.knowledge_search import knowledge_search_definition, knowledge_search_handler
 
 logger = logging.getLogger(__name__)
 
@@ -32,4 +33,5 @@ def register_all_tools() -> None:
     registry.register(calculator_definition, calculator_handler)
     registry.register(analyze_excel_definition, analyze_excel_handler)
     registry.register(generate_chart_definition, generate_chart_handler)
+    registry.register(knowledge_search_definition, knowledge_search_handler)
     logger.info("已注册工具: %s", registry.list_names())

@@ -30,7 +30,7 @@ import logging
 from typing import Any, AsyncGenerator
 
 from agent.executor import execute_tool
-from agent.prompts import SYSTEM_PROMPT·
+from agent.prompts import SYSTEM_PROMPT
 from agent.registry import ToolRegistry, registry
 from agent.schema import ToolResult
 from services.llm_service import chat_with_tools

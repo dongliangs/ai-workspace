@@ -13,6 +13,9 @@ from api.auth import router as auth_router
 from api.conversation import router as conversation_router
 from api.file import router as file_router
 from api.agent import router as agent_router
+from api.knowledge_base import router as knowledge_base_router
+from api.document import router as document_router
+from api.knowledge_chat import router as knowledge_chat_router
 from agent.bootstrap import register_all_tools
 #导入数据库engine
 from db.session import engine
@@ -23,6 +26,9 @@ from models.base import Base
 from models.user import User
 #导入 file 模型，确保 create_all 时建表
 from models.file import File
+#导入 V0.3 知识库模型，确保 create_all 时建表
+from models.knowledge_base import KnowledgeBase
+from models.document import KnowledgeDocument
 
 
 
@@ -38,6 +44,9 @@ async def create_tables():
 async def lifespan(app: FastAPI):
     await create_tables()
     register_all_tools()  # 注册 Agent 工具到全局 registry
+    # V0.3: 初始化 Milvus-lite collection
+    from knowledge.vector_store import init_collection
+    init_collection()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -48,6 +57,10 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(conversation_router, prefix="/api")
 app.include_router(file_router, prefix="/api")
 app.include_router(agent_router, prefix="/api")
+# V0.3 知识库路由
+app.include_router(knowledge_base_router, prefix="/api")
+app.include_router(document_router, prefix="/api")
+app.include_router(knowledge_chat_router, prefix="/api")
 
 #统一处理HttpException
 @app.exception_handler(HTTPException)

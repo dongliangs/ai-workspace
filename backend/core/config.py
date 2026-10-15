@@ -33,6 +33,24 @@ class Settings(BaseSettings):
         "ppt,pptx"
     )
 
+    # ---- V0.3 RAG 知识库配置 ----
+    # Embedding 模型名称（HuggingFace hub ID）
+    embedding_model_name: str = "BAAI/bge-small-zh-v1.5"
+    # Embedding 向量维度（bge-small-zh-v1.5 = 512）
+    embedding_dim: int = 512
+    # Milvus-lite 数据库文件路径
+    milvus_db_path: str = "milvus_data.db"
+    # Milvus collection 名称
+    milvus_collection_name: str = "knowledge_chunks"
+    # 文本分块大小（token 数）
+    chunk_size: int = 600
+    # 文本分块重叠（token 数）
+    chunk_overlap: int = 100
+    # 检索 Top-K
+    retrieval_top_k: int = 5
+    # 相似度阈值（低于此分数的结果被过滤）
+    retrieval_score_threshold: float = 0.3
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

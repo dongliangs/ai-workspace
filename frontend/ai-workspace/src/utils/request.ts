@@ -66,6 +66,36 @@ const SUCCESS_CODE = 0
 /** 流式响应支持的格式：SSE（标准 EventStream）或 NDJSON（逐行 JSON）。 */
 export type StreamFormat = 'sse' | 'ndjson'
 
+/**
+ * 流式错误码：
+ * - network: 建立连接阶段失败（断网、DNS 解析失败、服务不可达，fetch 直接 reject）
+ * - http:    服务端返回非 2xx
+ * - stream:  流式传输中途断开（连接已建立，读取过程中网络中断）
+ * - timeout: 超时被中断（总超时或空闲超时）
+ */
+export type StreamErrorCode = 'network' | 'http' | 'stream' | 'timeout'
+
+/**
+ * 流式请求统一错误类型。
+ *
+ * 为什么不用普通 Error：调用方需要区分"用户主动停止（AbortError，静默处理）"
+ * 与"网络异常（需向用户展示错误并提供重试）"，靠错误码判断比解析 message 字符串可靠。
+ * received 标记中断前是否已收到部分内容，UI 据此决定是否保留已渲染的文本。
+ */
+export class StreamError extends Error {
+  /** 错误分类，见 StreamErrorCode */
+  code: StreamErrorCode
+  /** 中断前是否已接收到部分内容 */
+  received: boolean
+
+  constructor(code: StreamErrorCode, message: string, received = false) {
+    super(message)
+    this.name = 'StreamError'
+    this.code = code
+    this.received = received
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /*  实例创建                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -491,6 +521,12 @@ export interface StreamOptions {
   format?: StreamFormat
   /** 流式请求通常需要更长超时，这里用毫秒；0 表示不超时（推荐，LLM 生成可能很久）。 */
   timeout?: number
+  /**
+   * 空闲超时（毫秒）：距上一个数据块超过该时长未收到新数据即判定网络异常并中断。
+   * 覆盖弱网/断网时 TCP 未感知、read() 长时间 pending 的场景（如拔网线）。
+   * 默认 60s（LLM 生成间隔远小于此值）；传 0 关闭。
+   */
+  idleTimeout?: number
 }
 
 /**
@@ -511,9 +547,9 @@ export interface StreamOptions {
  *
  * @param url   接口路径（会拼到 baseURL 后）
  * @param data  请求体（如 { messages, model, stream: true }）
- * @param options signal 中断、format 指定、timeout 超时
+ * @param options signal 中断、format 指定、timeout 总超时、idleTimeout 空闲超时
  *
- * @yields 每个数据块的字符串内容（已从 SSE/NDJSON 中提取出的 payload，通常是 JSON 字符串）
+ * @throws StreamError 断网/HTTP 错误/流中断/超时等异常，带 code 错误码与 received 标记
  *
  * @example
  * const ctrl = new AbortController()
@@ -522,7 +558,11 @@ export interface StreamOptions {
  *     replyText.value += chunk   // 增量渲染打字机效果
  *   }
  * } catch (e) {
- *   if (e.name !== 'AbortError') throw e
+ *   if (e instanceof StreamError) {
+ *     // 网络异常：按 e.code（network/http/stream/timeout）提示用户，e.received 判断是否保留已渲染内容
+ *   } else if (e.name !== 'AbortError') {
+ *     throw e // AbortError 是用户主动停止，静默处理
+ *   }
  * }
  */
 export async function* stream(
@@ -530,7 +570,7 @@ export async function* stream(
   data: Record<string, unknown>,
   options: StreamOptions = {},
 ): AsyncGenerator<string, void, unknown> {
-  const { signal, format, timeout = 0 } = options
+  const { signal, format, timeout = 0, idleTimeout = 60_000 } = options
 
   // 构造完整 URL：fetch 不走 axios 的 baseURL，需手动拼接。
   const fullUrl = `${FULL_BASE}${url}`
@@ -545,27 +585,67 @@ export async function* stream(
     headers.Authorization = `Bearer ${authStore.token}`
   }
 
-  // 可选超时：用 AbortController + setTimeout 实现，超时后 abort 中断流。
+  // 可选总超时：用 AbortController + setTimeout 实现，超时后 abort 中断流。
   // timeout=0 表示不超时（LLM 生成可能持续很久，不该被强行打断）。
   const timeoutCtrl = new AbortController()
+  // timedOut 标记：同样是 AbortError，需要区分"内部超时触发"与"用户主动 abort"，
+  // 前者要转成 StreamError('timeout') 上抛让 UI 提示，后者保持 AbortError 静默处理。
+  let timedOut = false
   let timer: ReturnType<typeof setTimeout> | undefined
   if (timeout > 0) {
-    timer = setTimeout(() => timeoutCtrl.abort(), timeout)
+    timer = setTimeout(() => {
+      timedOut = true
+      timeoutCtrl.abort()
+    }, timeout)
   }
   // 把外部 signal 和内部超时 signal 合并：任一触发都会中断。
   const mergedSignal = signal
     ? mergeSignals([signal, timeoutCtrl.signal])
     : timeoutCtrl.signal
 
-  const response = await fetch(fullUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(data),
-    signal: mergedSignal,
-  })
+  /**
+   * 空闲超时：每收到一个数据块重置定时器。
+   * 为什么需要：断网时若 TCP 层未感知（如拔网线、Wi-Fi 静默丢失），
+   * reader.read() 会一直 pending 而不报错，只能靠"多久没有新数据"来判定网络异常。
+   */
+  let idleTimer: ReturnType<typeof setTimeout> | undefined
+  const armIdleTimer = () => {
+    if (idleTimeout <= 0) return
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      timedOut = true
+      timeoutCtrl.abort()
+    }, idleTimeout)
+  }
+  const clearTimers = () => {
+    if (timer) clearTimeout(timer)
+    if (idleTimer) clearTimeout(idleTimer)
+  }
+
+  armIdleTimer()
+
+  // 建立连接阶段：断网/服务不可达时 fetch 会直接 reject（TypeError: Failed to fetch），
+  // 这里捕获并转成带错误码的 StreamError，调用方据 code 给出针对性提示。
+  let response: Response
+  try {
+    response = await fetch(fullUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+      signal: mergedSignal,
+    })
+  } catch (err) {
+    clearTimers()
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      if (timedOut) throw new StreamError('timeout', '请求超时，请检查网络后重试')
+      throw err // 用户主动中断，原样抛出，调用方静默处理
+    }
+    throw new StreamError('network', '网络连接失败，请检查网络后重试')
+  }
 
   // HTTP 非 2xx：尝试解析错误信息并抛出，让调用方 catch。
   if (!response.ok) {
+    clearTimers()
     let msg = `请求失败（${response.status}）`
     try {
       const errBody = await response.json()
@@ -574,13 +654,14 @@ export async function* stream(
     } catch {
       // 响应体不是 JSON，用默认提示。
     }
-    ElMessage.error(msg)
-    throw new Error(msg)
+    // 不在这里弹 ElMessage：错误由 UI 层以持久化错误条 + 重试入口的形式展示，
+    // 全局 toast 与页面内错误条重复出现反而干扰。
+    throw new StreamError('http', msg)
   }
 
   // body 为空（后端没返回流）：直接结束。
   if (!response.body) {
-    if (timer) clearTimeout(timer)
+    clearTimers()
     return
   }
 
@@ -592,11 +673,17 @@ export async function* stream(
   const decoder = new TextDecoder('utf-8')
   // 缓冲区：一次 read() 可能读到半条消息（跨块），需攒够完整消息再处理。
   let buffer = ''
+  // 是否已成功读取过数据块：用于区分"一个字都没收到"与"收到一半断流"两种提示文案。
+  let received = false
 
   try {
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
+
+      // 收到新数据块：重置空闲超时计时。
+      armIdleTimer()
+      received = true
 
       // 把二进制 chunk 解码成文本，追加到缓冲区。
       buffer += decoder.decode(value, { stream: true })
@@ -652,10 +739,33 @@ export async function* stream(
         yield buffer.trim()
       }
     }
+  } catch (err) {
+    // 读取阶段异常分类：
+    // - AbortError + timedOut：空闲/总超时触发（网络卡死无新数据）
+    // - AbortError（无 timedOut）：用户主动停止，原样抛出由调用方静默处理
+    // - 其他（通常是 TypeError: network error）：流传输中途断网
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      if (timedOut) {
+        throw new StreamError(
+          'timeout',
+          received ? '网络状况差，回复已中断' : '等待响应超时，请检查网络后重试',
+          received,
+        )
+      }
+      throw err
+    }
+    throw new StreamError(
+      'stream',
+      received ? '网络中断，回复未完成' : '网络连接中断，请检查网络后重试',
+      received,
+    )
   } finally {
-    // 无论正常结束还是中断，都要释放 reader 并清理超时定时器。
+    // 无论正常结束还是中断，都要释放 reader 并清理所有定时器。
+    // cancel：调用方 break / 异常中断时通知底层连接停止接收，释放服务端资源；
+    // 已 done/errored 的流 cancel 是 no-op 或 reject，吞掉即可。
+    reader.cancel().catch(() => undefined)
     reader.releaseLock()
-    if (timer) clearTimeout(timer)
+    clearTimers()
   }
 }
 
