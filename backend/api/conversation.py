@@ -6,7 +6,7 @@ from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.session import get_db, AsyncSessionLocal
-from models.conversation import Conversation
+from models.conversation import Conversation, ConversationType
 from models.message import Message, MessageRole
 from models.file import File
 from models.user import User
@@ -71,33 +71,37 @@ async def get_recent_conversations(
     db: AsyncSession = Depends(get_db),
     # limit: int = 10,
     page:int = Query(default=1, ge=1),
-    page_size:int = Query(default=5, ge=1, le=100)
+    page_size:int = Query(default=5, ge=1, le=100),
+    # 会话类型过滤（chat / agent / knowledge），None 表示全部类型
+    type: ConversationType | None = Query(default=None)
 ):
     """
     获取当前用户最近使用的会话，支持分页。
     page:当前页码，从1开始。
     page_size:每页条数。
     total:当前用户的会话总数。
+    type:会话类型过滤（chat / agent / knowledge），不传则返回全部。
     工作台"最近使用"列表使用。
     """
-    #1.查询当前用户的会话总数
+    # 公共过滤条件：归属当前用户 + 可选类型过滤
+    conditions = [Conversation.user_id == current_user.id]
+    if type is not None:
+        conditions.append(Conversation.type == type)
+
+    #1.查询当前用户的会话总数（含类型过滤，保证分页 total 一致）
     result = await db.execute(
-        # select(Conversation)
         select(func.count())
         .select_from(Conversation)
-        .where(Conversation.user_id == current_user.id)
-        # .order_by(Conversation.updated_at.desc())
-        # .limit(limit)
+        .where(*conditions)
     )
-    # conversations = result.scalars().all()
     total = result.scalar_one()
 
     # 2.根据页码计算数据库偏移量
     offset = (page - 1) * page_size
-    # 3.查询当前的会话
+    # 3.查询当前的会话（按类型过滤）
     offResult = await db.execute(
         select(Conversation)
-        .where(Conversation.user_id == current_user.id)
+        .where(*conditions)
         .order_by(
             Conversation.updated_at.desc(),
             Conversation.id.desc(),
@@ -191,15 +195,19 @@ async def get_conversation_messages(
 
     messages = result.scalars().all()
 
-    # 查询消息关联的文件，按 message_id 分组
+    # 查询消息关联的文件，按 message_id 分组（含文件名/大小，供前端附件展示）
     message_ids = [m.id for m in messages]
-    files_by_message: dict[int, list[int]] = {}
+    files_by_message: dict[int, list[dict]] = {}
     if message_ids:
         file_result = await db.execute(
             select(File).where(File.message_id.in_(message_ids))
         )
         for f in file_result.scalars().all():
-            files_by_message.setdefault(f.message_id, []).append(f.id)
+            files_by_message.setdefault(f.message_id, []).append({
+                "id": f.id,
+                "name": f.original_filename,
+                "size": f.file_size,
+            })
 
     return ApiResponse(
         code=0,
@@ -210,7 +218,7 @@ async def get_conversation_messages(
                 role=message.role,
                 content=message.content,
                 created_at=message.created_at,
-                file_ids=files_by_message.get(message.id, []),
+                files=files_by_message.get(message.id, []),
             )
             for message in messages
         ],

@@ -28,6 +28,7 @@ from models.message import Message, MessageRole
 from models.user import User
 from schemas.agent import AgentMessageCreate
 from services.agent_service import stream_agent_response
+from services.knowledge_service import get_knowledge_base
 from services.file_service import associate_files_with_message
 from datetime import datetime
 
@@ -81,6 +82,17 @@ async def create_agent_message(
     )
     history_messages = result.scalars().all()
 
+    # 2.1 校验绑定的知识库归属（绑定后 Agent 可通过 knowledge_search 检索）
+    kb_id: int = 0
+    if message_data.kb_id is not None:
+        kb = await get_knowledge_base(db, message_data.kb_id, current_user.id)
+        if kb is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="知识库不存在",
+            )
+        kb_id = kb.id
+
     # 3. 保存用户消息
     user_message = Message(
         conversation_id=conversation_id,
@@ -103,8 +115,12 @@ async def create_agent_message(
             db=db,
         )
 
-    # 4. 构造 AgentContext
-    context = AgentContext(system_prompt=SYSTEM_PROMPT)
+    # 4. 构造 AgentContext（携带会话身份，供工具执行时服务端注入）
+    context = AgentContext(
+        system_prompt=SYSTEM_PROMPT,
+        user_id=current_user.id,
+        kb_id=kb_id,
+    )
 
     # 添加对话历史（不含当前用户消息，当前消息单独添加）
     for msg in history_messages:

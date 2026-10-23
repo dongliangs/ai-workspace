@@ -60,6 +60,13 @@ class KnowledgeBase(Base):
         index=True,
         comment="绑定的会话ID",
     )
+    # 根据知识库的特点，实际一个知识库会包含多个文档
+    doc_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="文档数量",
+    )
     # 创建时间
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

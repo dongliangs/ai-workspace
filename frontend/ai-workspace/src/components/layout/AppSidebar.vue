@@ -71,12 +71,19 @@
                 href="#"
                 class="chat-history-item"
                 :class="{ active: chatStore.currentId === s.id }"
+                :title="`${s.title}（${sessionTypeLabel(s.type)}）`"
                 @click.prevent="onSelectSession(s.id)"
               >
-                <MessageSquare class="w-4 h-4 shrink-0" />
+                <component
+                  :is="sessionIconOf(s.type)"
+                  class="w-4 h-4 shrink-0"
+                />
                 <span class="truncate">{{ s.title }}</span>
               </a>
-              <div v-if="chatStore.loadingMore" class="loading-tip">
+              <div
+                v-if="chatStore.loadingMore"
+                class="loading-tip"
+              >
                 加载中...
               </div>
               <div
@@ -113,7 +120,6 @@
 import {
   LayoutGrid,
   MessageSquare,
-  FileText,
   BookOpen,
   Bot,
   Workflow,
@@ -150,6 +156,20 @@ const routeMode = computed<ConversationType>(() =>
   route.path === '/agent' ? 'agent' : 'chat',
 )
 
+/** 会话类型 → 对话记录列表项图标（chat / agent / knowledge 区分） */
+function sessionIconOf(type: ConversationType): Component {
+  if (type === 'agent') return Bot
+  if (type === 'knowledge') return BookOpen
+  return MessageSquare
+}
+
+/** 会话类型 → 中文标签（hover 提示用） */
+function sessionTypeLabel(type: ConversationType): string {
+  if (type === 'agent') return 'Agent 对话'
+  if (type === 'knowledge') return '知识库对话'
+  return '普通对话'
+}
+
 /** 是否在 Chat / Agent 页面：控制"对话记录"区域的显隐 */
 const showSessionList = computed(() =>
   route.path === '/chat' || route.path === '/agent',
@@ -157,11 +177,13 @@ const showSessionList = computed(() =>
 
 /**
  * 导航高亮：Chat / Agent 互斥高亮（不会两个同时 active）。
+ * 知识库用前缀匹配（列表页 /knowledge 与详情页 /knowledge/:id 都保持高亮）。
  * 其他路由按 path 精确匹配。
  */
 function isNavActive(path: string): boolean {
   if (path === '/chat') return route.path === '/chat'
   if (path === '/agent') return route.path === '/agent'
+  if (path === '/knowledge') return route.path.startsWith('/knowledge')
   return route.path === path
 }
 

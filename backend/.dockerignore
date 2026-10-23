@@ -1,0 +1,24 @@
+# 虚拟环境（容器内用 requirements.txt 重建，本地 venv 不进镜像）
+.venv
+.venv310
+
+# 密钥配置（敏感信息绝不进镜像，运行时用环境变量注入）
+.env
+
+# 运行时数据（挂载卷持久化，不打包进镜像层）
+uploads/
+milvus_data.db
+hf_cache/
+
+# Python 缓存
+__pycache__
+*.pyc
+*.pyo
+
+# 版本控制
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode

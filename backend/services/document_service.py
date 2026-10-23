@@ -26,6 +26,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.document import KnowledgeDocument, DocumentStatus
+from models.knowledge_base import KnowledgeBase
 from models.file import File
 from knowledge.loaders import load_document
 from knowledge.chunker import split_documents
@@ -51,7 +52,7 @@ async def create_and_index(
     Returns:
         创建的 KnowledgeDocument（状态为 indexed 或 failed）
     """
-    # 1. 创建文档记录
+    # 1. 创建文档记录（doc_count 在索引成功后才计入）
     doc = KnowledgeDocument(
         knowledge_base_id=kb_id,
         user_id=user_id,
@@ -64,7 +65,7 @@ async def create_and_index(
     await db.commit()
     await db.refresh(doc)
 
-    # 2. 构建索引
+    # 2. 构建索引；失败则置为 failed（不计入知识库文档数量）
     try:
         await _build_index(db, doc, file_record.storage_path)
     except Exception as e:
@@ -73,7 +74,60 @@ async def create_and_index(
         doc.error_message = str(e)[:500]
         await db.commit()
         await db.refresh(doc)
+        return doc
 
+    # 3. 索引成功，重算知识库文档计数
+    await _refresh_doc_count(db, kb_id)
+    return doc
+
+
+async def retry_index(
+    db: AsyncSession,
+    doc_id: int,
+    user_id: int,
+) -> KnowledgeDocument | None:
+    """
+    重试索引失败的文档。
+
+    仅 status=failed 的文档可重试：先清理可能残留的旧向量（部分写入场景），
+    再重新走完整构建链路。成功转 indexed 并重算 doc_count，
+    再次失败则保持 failed 并更新 error_message。
+
+    Returns:
+        更新后的文档；doc_id 不存在或不属于该用户时返回 None
+    """
+    doc = await get_document(db, doc_id, user_id)
+    if doc is None:
+        return None
+    if doc.status != DocumentStatus.FAILED:
+        raise ValueError("仅索引失败的文档可以重试")
+
+    # 1. 清理残留向量（失败前可能已部分写入）
+    try:
+        delete_by_document(doc_id)
+    except Exception as e:
+        logger.warning("重试前清理旧向量失败 doc_id=%d: %s", doc_id, e)
+
+    # 2. 状态回到 processing，清空旧错误信息
+    doc.status = DocumentStatus.PROCESSING
+    doc.error_message = None
+    await db.commit()
+    await db.refresh(doc)
+
+    # 3. 复用原始文件重新构建
+    file_record = await db.get(File, doc.file_id)
+    try:
+        await _build_index(db, doc, file_record.storage_path)
+    except Exception as e:
+        logger.error("重试索引失败 doc_id=%d: %s", doc.id, e)
+        doc.status = DocumentStatus.FAILED
+        doc.error_message = str(e)[:500]
+        await db.commit()
+        await db.refresh(doc)
+        return doc
+
+    # 4. 成功，重算知识库文档计数
+    await _refresh_doc_count(db, doc.knowledge_base_id)
     return doc
 
 
@@ -174,13 +228,35 @@ async def delete_document(
     if doc is None:
         return False
 
+    kb_id = doc.knowledge_base_id
+
     # 清理向量
     try:
         delete_by_document(doc_id)
     except Exception as e:
         logger.error("删除文档向量失败 doc_id=%d: %s", doc_id, e)
 
-    # 删除文档记录
+    # 删除文档记录，并重算知识库文档计数
     await db.delete(doc)
-    await db.commit()
+    await _refresh_doc_count(db, kb_id)
     return True
+
+
+async def _refresh_doc_count(db: AsyncSession, kb_id: int) -> None:
+    """
+    按「索引成功」的文档数重算知识库 doc_count。
+
+    只有 status=indexed 的文档计入数量（failed/processing 不计），
+    且重算可自愈历史增量计数漂移。
+    """
+    result = await db.execute(
+        select(func.count())
+        .select_from(KnowledgeDocument)
+        .where(
+            KnowledgeDocument.knowledge_base_id == kb_id,
+            KnowledgeDocument.status == DocumentStatus.INDEXED,
+        )
+    )
+    kb = await db.get(KnowledgeBase, kb_id)
+    kb.doc_count = result.scalar_one()
+    await db.commit()

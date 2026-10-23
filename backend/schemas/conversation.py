@@ -36,14 +36,21 @@ class MessageCreate(BaseModel):
     # 携带的文件 id 列表（可选），三种会话类型都可携带
     file_ids: list[int] | None = None
 
+class MessageFile(BaseModel):
+    """消息关联的附件文件信息（前端历史消息附件展示用）"""
+
+    id: int
+    name: str
+    size: int
+
 class MessageResponse(BaseModel):
     id: int
     conversation_id: int
     role:MessageRole
     content: str
     created_at: datetime
-    # 关联的文件 id 列表
-    file_ids: list[int] = []
+    # 关联的附件文件列表（含文件名/大小，前端加载历史时展示附件 chip）
+    files: list[MessageFile] = []
     # Agent 工具执行结果（刷新页面后恢复图表/数据）
     tool_results: list | None = None
 

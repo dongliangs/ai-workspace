@@ -51,8 +51,17 @@ class AgentContext:
     - tool:      工具执行结果（Observation）
     """
 
-    def __init__(self, system_prompt: str = "") -> None:
+    def __init__(
+        self,
+        system_prompt: str = "",
+        user_id: int = 0,
+        kb_id: int = 0,
+    ) -> None:
         self.messages: list[dict[str, Any]] = []
+        # 会话身份上下文：由 API 层注入，供 Executor 下发给需要的工具
+        # （如 knowledge_search），LLM 无法感知和伪造
+        self.user_id = user_id
+        self.kb_id = kb_id
         if system_prompt:
             self.messages.append({"role": "system", "content": system_prompt})
 
@@ -175,7 +184,15 @@ class AgentRuntime:
                 }
 
                 # Action: 执行工具（executor 返回 ToolResult，不抛异常）
-                result: ToolResult = await execute_tool(tool_name, arguments)
+                # 会话上下文（user_id/kb_id）由服务端注入，LLM 参数不可覆盖
+                result: ToolResult = await execute_tool(
+                    tool_name,
+                    arguments,
+                    context={
+                        "user_id": context.user_id,
+                        "kb_id": context.kb_id,
+                    },
+                )
 
                 # Observation: 通知前端工具执行结果
                 yield {

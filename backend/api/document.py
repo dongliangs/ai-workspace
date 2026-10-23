@@ -22,6 +22,7 @@ from services.document_service import (
     get_documents_paginated,
     get_document,
     delete_document,
+    retry_index,
 )
 from services.knowledge_service import get_knowledge_base
 from services.file_service import save_upload_file, validate_file_extension, validate_file_size
@@ -135,6 +136,35 @@ async def get_document_detail(
         code=0,
         data=DocumentResponse.model_validate(doc),
         message="获取文档详情成功",
+    )
+
+
+@router.post(
+    "/knowledge-bases/{kb_id}/documents/{doc_id}/retry",
+    response_model=ApiResponse[DocumentResponse],
+)
+async def retry_document(
+    kb_id: int,
+    doc_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """重试索引失败的文档（重新解析并构建向量索引）"""
+    # 校验知识库归属
+    kb = await get_knowledge_base(db, kb_id, current_user.id)
+    if kb is None:
+        raise HTTPException(status_code=404, detail="知识库不存在")
+
+    try:
+        doc = await retry_index(db, doc_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if doc is None or doc.knowledge_base_id != kb_id:
+        raise HTTPException(status_code=404, detail="文档不存在")
+    return ApiResponse(
+        code=0,
+        data=DocumentResponse.model_validate(doc),
+        message="重试完成",
     )
 
 

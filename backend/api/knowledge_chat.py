@@ -14,17 +14,20 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, update
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
 from db.session import get_db, AsyncSessionLocal
 from models.user import User
-from models.conversation import Conversation, ConversationType
 from models.message import Message, MessageRole
 from schemas.common import ApiResponse
 from schemas.document import KnowledgeChatRequest
-from services.knowledge_service import get_knowledge_base
+from models.conversation import Conversation, ConversationType
+from services.knowledge_service import (
+    get_knowledge_base,
+    resolve_knowledge_conversation,
+)
 from services.rag_service import rag_chat_stream, _sse
 
 router = APIRouter(tags=["knowledge-chat"])
@@ -48,30 +51,18 @@ async def knowledge_chat(
     if kb is None:
         raise HTTPException(status_code=404, detail="知识库不存在")
 
-    # 2. 创建或复用会话
-    conversation_id = data.conversation_id
-    if conversation_id is None:
-        # 创建新的 knowledge 类型会话
-        conv = Conversation(
-            user_id=current_user.id,
-            title=data.question[:50],
-            type=ConversationType.KNOWLEDGE,
+    # 2. 解析会话（服务端持久化绑定：请求指定 → 复用 kb 绑定 → 新建并绑定）
+    try:
+        conv = await resolve_knowledge_conversation(
+            db,
+            kb,
+            current_user.id,
+            requested_conversation_id=data.conversation_id,
+            default_title=data.question[:50],
         )
-        db.add(conv)
-        await db.commit()
-        await db.refresh(conv)
-        conversation_id = conv.id
-    else:
-        # 校验会话归属
-        result = await db.execute(
-            select(Conversation).where(
-                Conversation.id == conversation_id,
-                Conversation.user_id == current_user.id,
-            )
-        )
-        conv = result.scalar_one_or_none()
-        if conv is None:
-            raise HTTPException(status_code=404, detail="会话不存在")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    conversation_id = conv.id
 
     # 3. 保存用户问题
     user_msg = Message(

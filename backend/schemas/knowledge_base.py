@@ -22,12 +22,10 @@ class KnowledgeBaseResponse(BaseModel):
     description: str | None = None
     status: str
     conversation_id: int | None = None
+    doc_count: int
+    # 可检索片段总数（实时聚合文档表 chunk_count，仅统计索引成功文档；表内不冗余存储）
+    chunk_count: int = 0
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
-
-
-class KnowledgeBaseDetailResponse(KnowledgeBaseResponse):
-    """知识库详情（含文档数量）"""
-    document_count: int = 0

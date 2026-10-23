@@ -337,6 +337,10 @@ export function put<T = unknown>(
 ): Promise<T> {
   return request<T>({ url, method: 'put', data, ...config })
 }
+// Patch 方法封装
+export function patch<T = unknown>(url: string, data?: Record<string, unknown>,config?: AxiosRequestConfig):Promise<T> {
+  return request<T>({ url, method: 'patch', data, ...config })
+}
 
 /** DELETE 封装：删除资源，参数可能走 query 或 body，二者都支持。 */
 export function del<T = unknown>(

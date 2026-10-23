@@ -33,14 +33,31 @@ const router = createRouter({
         {
           path: 'chat',
           name: 'Chat',
-          component: () => import('@/views/chat/index.vue'),
+          component: () => import('@/views/chat/ChatView.vue'),
           meta: { flush: true },
         },
         {
           path: 'agent',
           name: 'Agent',
-          component: () => import('@/views/chat/index.vue'),
+          component: () => import('@/views/chat/AgentView.vue'),
           meta: { flush: true },
+        },
+        {
+          path: 'knowledge',
+          name: 'Knowledge',
+          component: () => import('@/views/knowledge-base/index.vue'),
+        },
+        // 知识库问答：必须放在 knowledge/:id 之前，避免被动态段匹配
+        {
+          path: 'knowledge/chat',
+          name: 'KnowledgeChat',
+          component: () => import('@/views/chat/KnowledgeView.vue'),
+          meta: { flush: true },
+        },
+        {
+          path: 'knowledge/:id',
+          name: 'KnowledgeDetail',
+          component: () => import('@/views/knowledge-base/detail.vue'),
         },
       ],
     },
@@ -48,10 +65,10 @@ const router = createRouter({
 })
 
 // 路由守卫：
-// - AppLayout 下所有路由（/workspace、/chat、/agent）均需登录，未登录跳 /auth（带 redirect）
+// - AppLayout 下所有路由（/workspace、/chat、/agent、/knowledge）均需登录，未登录跳 /auth（带 redirect）
 // - /auth 已登录则跳 /workspace（避免重复登录）
 // - / 已登录则跳 /workspace（首页是未登录落地页）
-const PROTECTED_PATHS = ['/workspace', '/chat', '/agent']
+const PROTECTED_PATHS = ['/workspace', '/chat', '/agent', '/knowledge']
 
 router.beforeEach((to) => {
   const auth = useAuthStore()

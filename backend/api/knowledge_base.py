@@ -16,7 +16,6 @@ from schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseUpdate,
     KnowledgeBaseResponse,
-    KnowledgeBaseDetailResponse,
 )
 from schemas.document import DocumentResponse
 from schemas.conversation import PageResponse
@@ -26,10 +25,17 @@ from services.knowledge_service import (
     get_knowledge_base,
     update_knowledge_base,
     delete_knowledge_base,
-    count_documents,
+    sum_chunk_counts,
 )
 
 router = APIRouter(prefix="/knowledge-bases", tags=["knowledge-base"])
+
+
+def _kb_resp(kb, chunk_sums: dict[int, int]) -> KnowledgeBaseResponse:
+    """构建知识库响应（chunk_count 为实时聚合值，无记录时为 0）。"""
+    resp = KnowledgeBaseResponse.model_validate(kb)
+    resp.chunk_count = chunk_sums.get(kb.id, 0)
+    return resp
 
 
 @router.post("", response_model=ApiResponse[KnowledgeBaseResponse])
@@ -60,10 +66,11 @@ async def list_kbs(
     items, total = await get_knowledge_bases_paginated(
         db, user_id=current_user.id, page=page, page_size=page_size
     )
+    chunk_sums = await sum_chunk_counts(db, [kb.id for kb in items])
     return ApiResponse(
         code=0,
         data=PageResponse(
-            items=[KnowledgeBaseResponse.model_validate(kb) for kb in items],
+            items=[_kb_resp(kb, chunk_sums) for kb in items],
             total=total,
             page=page,
             page_size=page_size,
@@ -72,22 +79,22 @@ async def list_kbs(
     )
 
 
-@router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBaseDetailResponse])
+@router.get("/{kb_id}", response_model=ApiResponse[KnowledgeBaseResponse])
 async def get_kb_detail(
     kb_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取知识库详情（含文档数量）"""
+    """获取知识库详情"""
     kb = await get_knowledge_base(db, kb_id, current_user.id)
     if kb is None:
         raise HTTPException(status_code=404, detail="知识库不存在")
 
-    doc_count = await count_documents(db, kb_id)
-    resp = KnowledgeBaseDetailResponse.model_validate(kb)
-    resp.document_count = doc_count
-
-    return ApiResponse(code=0, data=resp, message="获取知识库详情成功")
+    return ApiResponse(
+        code=0,
+        data=_kb_resp(kb, await sum_chunk_counts(db, [kb.id])),
+        message="获取知识库详情成功",
+    )
 
 
 @router.patch("/{kb_id}", response_model=ApiResponse[KnowledgeBaseResponse])
@@ -105,7 +112,7 @@ async def update_kb(
         raise HTTPException(status_code=404, detail="知识库不存在")
     return ApiResponse(
         code=0,
-        data=KnowledgeBaseResponse.model_validate(kb),
+        data=_kb_resp(kb, await sum_chunk_counts(db, [kb.id])),
         message="修改知识库成功",
     )
 

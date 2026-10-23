@@ -5,19 +5,23 @@ Knowledge Search 工具 —— Agent 调用知识库检索。
 
 工作方式：
     1. LLM 决定调用 knowledge_search，传入 question 参数
-    2. Executor 调用本 handler，从会话上下文注入 user_id 和 kb_id
+    2. Executor 调用本 handler，并从会话上下文注入 user_id 和 kb_id
     3. handler 调用 retrieval.retrieve() 检索知识片段
-    4. 返回 ToolResult（含检索片段摘要），Agent 据此生成回答
+    4. 返回原始数据 dict，由 Executor 统一包装为 ToolResult
+
+契约（与其他工具一致）：
+    - handler 只返回原始数据（dict），不构造 ToolResult
+    - 检索异常直接抛出，由 Executor 捕获并转为 error 结果
 
 安全规则：
-    - user_id 和 kb_id 由服务端注入，LLM 不能指定任意用户/知识库
+    - user_id 和 kb_id 由 Executor 从会话上下文注入，LLM 不能指定
     - 如果当前会话没有绑定知识库，工具返回提示而非搜索全部文档
 ===========================================================================
 """
 import logging
 from typing import Any
 
-from agent.schema import ToolDefinition, ToolResult
+from agent.schema import ToolDefinition
 from knowledge.retrieval import retrieve
 
 logger = logging.getLogger(__name__)
@@ -28,11 +32,11 @@ async def knowledge_search_handler(
     user_id: int = 0,
     kb_id: int = 0,
     **kwargs: Any,
-) -> ToolResult:
+) -> dict:
     """
     知识库检索工具 handler。
 
-    注意：user_id 和 kb_id 由 AgentService 在调用时从会话上下文注入，
+    注意：user_id 和 kb_id 由 Executor 从会话上下文注入，
     不在 LLM 参数中暴露。如果 kb_id 为 0，表示当前会话未绑定知识库。
 
     Args:
@@ -41,36 +45,27 @@ async def knowledge_search_handler(
         kb_id:    知识库 ID（服务端注入）
 
     Returns:
-        ToolResult 含检索片段列表
+        dict: 检索结果（含片段列表摘要），由 Executor 包装为 ToolResult
     """
     if not kb_id:
-        return ToolResult.success(
-            "knowledge_search",
-            {
-                "found": False,
-                "message": "当前会话未绑定知识库，无法检索。请先选择知识库。",
-            },
-        )
+        return {
+            "found": False,
+            "message": "当前会话未绑定知识库，无法检索。请先选择知识库。",
+        }
 
-    try:
-        chunks = retrieve(
-            question=question,
-            user_id=user_id,
-            kb_id=kb_id,
-        )
-    except Exception as e:
-        logger.error("knowledge_search 检索失败: %s", e)
-        return ToolResult.failure("knowledge_search", f"检索失败: {e}")
+    # 异常直接抛出，由 Executor 捕获并转为 ToolResult.failure
+    chunks = retrieve(
+        question=question,
+        user_id=user_id,
+        kb_id=kb_id,
+    )
 
     if not chunks:
-        return ToolResult.success(
-            "knowledge_search",
-            {
-                "found": False,
-                "message": "未在知识库中找到与问题相关的片段。",
-                "question": question,
-            },
-        )
+        return {
+            "found": False,
+            "message": "未在知识库中找到与问题相关的片段。",
+            "question": question,
+        }
 
     # 组装检索片段摘要（传给 LLM，不需要完整向量数据）
     fragments = []
@@ -83,15 +78,12 @@ async def knowledge_search_handler(
             "score": round(chunk.get("score", 0.0), 4),
         })
 
-    return ToolResult.success(
-        "knowledge_search",
-        {
-            "found": True,
-            "question": question,
-            "fragment_count": len(fragments),
-            "fragments": fragments,
-        },
-    )
+    return {
+        "found": True,
+        "question": question,
+        "fragment_count": len(fragments),
+        "fragments": fragments,
+    }
 
 
 # ── 工具定义 ──────────────────────────────────────────────

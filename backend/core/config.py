@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
 
     deepseek_api_key: str
-    deepseek_model: str = "https://api.deepseek.com"
-    deepseek_base_url: str = "deepseek-flash"
+    deepseek_model: str = "deepseek-flash"
+    deepseek_base_url: str = "https://api.deepseek.com"
 
     # ---- 文件上传配置 ----
     # 文件存储根目录（相对于项目根目录）

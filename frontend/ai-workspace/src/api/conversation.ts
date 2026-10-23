@@ -2,9 +2,10 @@
  * 会话相关接口
  */
 import { post, get, stream, type StreamOptions } from '@/utils/request'
+import type { KnowledgeSource } from './knowledgeChat'
 
-/** 会话类型：普通聊天 / Agent 模式 */
-export type ConversationType = 'chat' | 'agent'
+/** 会话类型：普通聊天 / Agent 模式 / 知识库对话 */
+export type ConversationType = 'chat' | 'agent' | 'knowledge'
 
 /** 创建会话的请求参数 */
 export interface ConversationCreate {
@@ -27,7 +28,22 @@ export interface ChatMessageDTO {
   role: 'user' | 'assistant' | 'system'
   content: string
   created_at: string
-  tool_results?: Array<{ tool: string; status: string; result?: unknown }>
+  /** 关联的附件文件列表（历史消息加载时展示附件 chip） */
+  files?: { id: number; name: string; size: number }[]
+  /**
+   * 消息附加结果：
+   * - Agent 消息：{ tool, status, result }
+   * - 知识库问答消息：{ type: 'rag_sources', sources } / { type: 'rag_no_results', kb_id }
+   */
+  tool_results?: {
+    tool?: string
+    status?: string
+    result?: unknown
+    /** 知识库问答记录类型（rag_sources / rag_no_results） */
+    type?: string
+    /** 知识库问答：检索命中的来源片段（type = rag_sources 时存在） */
+    sources?: KnowledgeSource[]
+  }[]
 }
 
 interface itemsType {
@@ -120,6 +136,16 @@ export type AgentEvent =
   | { type: 'tool_result'; tool: string; status: 'success' | 'error'; result?: unknown }
   | { type: 'done'; message_id: number; tool_results?: Array<{ tool: string; status: string; result?: unknown }> }
 
+/** Agent 流式请求参数 */
+export interface AgentStreamParams {
+  /** 已上传文件的 ID 列表 */
+  fileIds?: number[]
+  /** 指定使用的工具列表（不传则由 Agent 自行决定） */
+  tools?: string[]
+  /** 绑定的知识库 ID：绑定后 Agent 可调用 knowledge_search 检索该知识库 */
+  kbId?: number
+}
+
 /**
  * Agent 流式发送消息：后端 Agent Runtime 执行工具调用，通过 SSE 推送事件。
  *
@@ -130,22 +156,23 @@ export type AgentEvent =
  * - tool_result: 工具执行完成（含状态和结果）
  * - done: Agent 执行完成（含最终 message_id）
  *
+ * 知识库问答不走本接口，改用 @/api/knowledgeChat 的独立 RAG 端点。
+ *
  * @param conversationId 会话 ID
  * @param content 用户输入
- * @param fileIds 已上传文件的 ID 列表
- * @param tools 指定使用的工具列表（可选，不传则由 Agent 自行决定）
+ * @param params 文件 / 工具
  * @param options 流式中断/超时控制
  */
 export async function* sendAgentMessageStream(
   conversationId: number,
   content: string,
-  fileIds?: number[],
-  tools?: string[],
+  params: AgentStreamParams = {},
   options?: StreamOptions,
 ): AsyncGenerator<AgentEvent, void, unknown> {
   const payload: Record<string, unknown> = { content }
-  if (fileIds && fileIds.length) payload.file_ids = fileIds
-  if (tools && tools.length) payload.tools = tools
+  if (params.fileIds && params.fileIds.length) payload.file_ids = params.fileIds
+  if (params.tools && params.tools.length) payload.tools = params.tools
+  if (params.kbId) payload.kb_id = params.kbId
 
   for await (const raw of stream(`/agent/${conversationId}/messages`, payload, options)) {
     try {

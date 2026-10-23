@@ -2,9 +2,10 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import Base
+from models.file import File
 
 
 class DocumentStatus(str, Enum):
@@ -95,3 +96,10 @@ class KnowledgeDocument(Base):
         nullable=True,
         comment="索引完成时间",
     )
+    # 关联文件记录（joined 预加载：异步会话下避免懒加载报错）
+    file: Mapped[File] = relationship(File, lazy="joined")
+
+    @property
+    def size(self) -> int:
+        """文件大小（字节），取自关联 File 记录"""
+        return self.file.file_size

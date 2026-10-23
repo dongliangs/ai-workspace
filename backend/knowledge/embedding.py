@@ -22,6 +22,11 @@ import os
 # 必须在 import langchain_huggingface（其内部读 HF_ENDPOINT）之前设置。
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
+# 模型已完整缓存到本地后，禁用联网校验（每次加载时的 HEAD 请求），
+# 避免 hf-mirror.com 网络波动/超时导致文档向量化报错。
+# 全新环境首次下载模型时，可通过环境变量 HF_HUB_OFFLINE=0 覆盖此默认值。
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from core.config import settings

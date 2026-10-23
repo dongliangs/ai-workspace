@@ -1,0 +1,85 @@
+# AI WorkSpace 生产部署编排
+# 用法：
+#   1. cp .env.docker.example .env  然后填入真实密钥
+#   2. docker compose up -d --build
+#
+# 架构：backend（FastAPI + BGE 模型 + Milvus-lite）+ mysql 8
+# 前端 nginx 容器在前端构建产物就绪后追加（见文末注释）
+
+services:
+  mysql:
+    image: mysql:8
+    container_name: aiws-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ai_workspace
+      MYSQL_USER: ai_workspace
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # 4G 小内存机器，压低 InnoDB 缓冲池给 torch 留内存
+      - --innodb-buffer-pool-size=256M
+      - --performance-schema=OFF
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # 不映射端口到宿主机：MySQL 只在容器网络内可见，杜绝公网直连
+    mem_limit: 768m
+
+  backend:
+    build: ./backend
+    container_name: aiws-backend
+    restart: unless-stopped
+    # init 进程正确转发信号、回收僵尸进程
+    init: true
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # 业务数据库（容器网络内通过服务名 mysql 互访）
+      DATABASE_URL: mysql+aiomysql://ai_workspace:${MYSQL_PASSWORD}@mysql:3306/ai_workspace?charset=utf8mb4
+      # 认证密钥（必填，强随机值）
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      # DeepSeek LLM
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      # Milvus-lite 向量库文件放数据卷里（默认相对路径会在容器重建时丢失数据）
+      MILVUS_DB_PATH: /app/data/milvus_data.db
+    volumes:
+      # 三块持久化数据：用户上传文件 / 向量库 / BGE 模型缓存
+      - uploads-data:/app/uploads
+      - milvus-data:/app/data
+      - hf-cache:/app/hf_cache
+    ports:
+      # 仅绑定宿主机回环地址：服务器上 curl 冒烟测试用；
+      # 公网流量后续由 nginx 容器在内部网络反代 backend:8000，不直接暴露
+      - "127.0.0.1:8000:8000"
+    # RSA 密钥内存态 + torch 常驻模型，锁 2G 防止把 4G 机器打爆
+    mem_limit: 2g
+
+  # ---------- 前端 nginx（待 frontend dist 构建好后追加） ----------
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: aiws-nginx
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - backend
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./frontend-dist:/usr/share/nginx/html:ro
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  mysql-data:
+  uploads-data:
+  milvus-data:
+  hf-cache:
