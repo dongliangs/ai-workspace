@@ -41,13 +41,6 @@
         <span class="arg-val">{{ formatVal(v) }}</span>
       </div>
     </div>
-
-    <!-- 图表渲染：generate_chart 成功后 result.echarts_option -->
-    <ChartRenderer
-      v-if="chartOption"
-      :option="chartOption"
-      :title="chartTitle"
-    />
   </div>
 </template>
 
@@ -62,7 +55,6 @@ import {
   BarChart3,
   Wrench,
 } from 'lucide-vue-next'
-import ChartRenderer from './ChartRenderer.vue'
 
 /** 工具调用卡片数据 */
 interface ToolInvocation {
@@ -109,19 +101,6 @@ const statusText = computed(() => {
 const argEntries = computed(() =>
   Object.entries(props.tool.arguments ?? {}),
 )
-
-/** 从 tool result 提取 echarts_option（仅 generate_chart 工具） */
-const chartOption = computed<Record<string, any> | null>(() => {
-  if (props.tool.tool !== 'generate_chart') return null
-  if (props.tool.status !== 'success') return null
-  const result = props.tool.result as Record<string, any> | undefined
-  return result?.echarts_option ?? null
-})
-
-const chartTitle = computed(() => {
-  const result = props.tool.result as Record<string, any> | undefined
-  return result?.title ?? ''
-})
 
 function formatVal(v: unknown): string {
   if (v == null) return '-'

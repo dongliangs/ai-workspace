@@ -59,6 +59,11 @@ const router = createRouter({
           name: 'KnowledgeDetail',
           component: () => import('@/views/knowledge-base/detail.vue'),
         },
+        {
+          path: 'workflow',
+          name: 'Workflow',
+          component: () => import('@/views/workflow/workflow.vue'),
+        },
       ],
     },
   ],

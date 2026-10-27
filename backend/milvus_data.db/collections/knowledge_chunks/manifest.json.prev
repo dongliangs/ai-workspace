@@ -1,6 +1,6 @@
 {
-  "active_wal_number": 6,
-  "current_seq": 183,
+  "active_wal_number": 7,
+  "current_seq": 209,
   "index_specs": {
     "vector": {
       "build_params": {},
@@ -14,16 +14,15 @@
   "partitions": {
     "_default": {
       "data_files": [
-        "data/data_000001_000031.parquet",
-        "data/data_000032_000122.parquet",
-        "data/data_000123_000166.parquet",
-        "data/data_000168_000183.parquet"
+        "data/data_000001_000183.parquet",
+        "data/data_000193_000206.parquet"
       ],
       "delta_files": [
-        "delta/delta_000167_000167.parquet"
+        "delta/delta_000167_000167.parquet",
+        "delta/delta_000192_000209.parquet"
       ]
     }
   },
   "schema_version": 1,
-  "version": 5
+  "version": 7
 }

@@ -16,6 +16,7 @@ dist/
 venv/
 env/
 ENV/
+design/
 
 # ===== 环境变量 / 密钥（绝不提交）=====
 .env
@@ -48,3 +49,5 @@ desktop.ini
 _tmp_*.json
 _t_*.json
 _enum_check.py
+milvus_data.db/
+milvus_data.db

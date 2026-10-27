@@ -177,7 +177,7 @@
     </section>
 
     <!-- Bottom grid -->
-    <section class="bottom-grid grid gap-4">
+    <section class="bottom-grid grid gap-1">
       <!-- 最近使用 -->
       <div class="bg-card rounded-xl shadow-card p-5">
         <div class="panel-header">
@@ -222,7 +222,7 @@
       </div>
 
       <!-- 热门模板 -->
-      <div class="bg-card rounded-xl shadow-card p-5">
+      <!-- <div class="bg-card rounded-xl shadow-card p-5">
         <div class="panel-header">
           <h3 class="section-title">
             热门模板
@@ -259,10 +259,10 @@
             </div>
           </a>
         </div>
-      </div>
+      </div> -->
 
       <!-- 系统公告 -->
-      <div class="bg-card rounded-xl shadow-card p-5">
+      <!-- <div class="bg-card rounded-xl shadow-card p-5">
         <div class="panel-header">
           <h3 class="section-title">
             系统公告
@@ -299,7 +299,7 @@
             </div>
           </a>
         </div>
-      </div>
+      </div> -->
     </section>
   </div>
 </template>
@@ -395,65 +395,65 @@ const recentIconStyle: CSSProperties = {
   color: '#3b82f6',
 }
 
-const templates: ListItem[] = [
-  {
-    title: '数据分析报告',
-    meta: '工作提效',
-    icon: LayoutTemplate,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #3b82f6 10%, #ffffff)',
-      color: '#3b82f6',
-    },
-  },
-  {
-    title: '产品方案策划',
-    meta: '产品运营',
-    icon: FileText,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #10b981 10%, #ffffff)',
-      color: '#10b981',
-    },
-  },
-  {
-    title: '会议纪要整理',
-    meta: '团队协作',
-    icon: ClipboardList,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #3b82f6 14%, #ffffff)',
-      color: '#3b82f6',
-    },
-  },
-]
+// const templates: ListItem[] = [
+//   {
+//     title: '数据分析报告',
+//     meta: '工作提效',
+//     icon: LayoutTemplate,
+//     iconStyle: {
+//       backgroundColor: 'color-mix(in srgb, #3b82f6 10%, #ffffff)',
+//       color: '#3b82f6',
+//     },
+//   },
+//   {
+//     title: '产品方案策划',
+//     meta: '产品运营',
+//     icon: FileText,
+//     iconStyle: {
+//       backgroundColor: 'color-mix(in srgb, #10b981 10%, #ffffff)',
+//       color: '#10b981',
+//     },
+//   },
+//   {
+//     title: '会议纪要整理',
+//     meta: '团队协作',
+//     icon: ClipboardList,
+//     iconStyle: {
+//       backgroundColor: 'color-mix(in srgb, #3b82f6 14%, #ffffff)',
+//       color: '#3b82f6',
+//     },
+//   },
+// ]
 
-const announcements: ListItem[] = [
-  {
-    title: 'AI WorkSpace V0.8 正式发布',
-    meta: '2026-09-21',
-    icon: Megaphone,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #3b82f6 12%, #ffffff)',
-      color: '#3b82f6',
-    },
-  },
-  {
-    title: '支持多种文档格式上传与解析',
-    meta: '2026-09-18',
-    icon: FileType,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #10b981 10%, #ffffff)',
-      color: '#10b981',
-    },
-  },
-  {
-    title: '知识库功能上线，支持本地文件导入',
-    meta: '2026-09-15',
-    icon: Database,
-    iconStyle: {
-      backgroundColor: 'color-mix(in srgb, #3b82f6 12%, #ffffff)',
-      color: '#3b82f6',
-    },
-  },
-]
+// const announcements: ListItem[] = [
+//   {
+//     title: 'AI WorkSpace V0.8 正式发布',
+//     meta: '2026-09-21',
+//     icon: Megaphone,
+//     iconStyle: {
+//       backgroundColor: 'color-mix(in srgb, #3b82f6 12%, #ffffff)',
+//       color: '#3b82f6',
+//     },
+//   },
+//   {
+//     title: '支持多种文档格式上传与解析',
+//     meta: '2026-09-18',
+//     icon: FileType,
+//     iconStyle: {
+//       backgroundColor: 'color-mix(in srgb, #10b981 10%, #ffffff)',
+//       color: '#10b981',
+//     },
+//   },
+//   {
+//     title: '知识库功能上线，支持本地文件导入',
+//     meta: '2026-09-15',
+//     icon: Database,
+//     iconStyle: {
+//       backgroundColor: 'color-mix(in srgb, #3b82f6 12%, #ffffff)',
+//       color: '#3b82f6',
+//     },
+//   },
+// ]
 
 async function onPrompt() {
   const text = prompt.value.trim()
@@ -474,7 +474,7 @@ async function onPrompt() {
 }
 
 function onQuickClick(item: QuickItem) {
-  if (item.title === 'Agent 任务') {
+  if (item.title === 'Agent 任务' || item.title === '文件分析') {
     chatStore.selectSession(null)
     router.push('/agent')
     return
@@ -482,6 +482,11 @@ function onQuickClick(item: QuickItem) {
   if (item.title === 'AI Chat') {
     chatStore.selectSession(null)
     router.push('/chat')
+    return
+  }
+  if (item.title === '知识问答') {
+    chatStore.selectSession(null)
+    router.push('/knowledge')
     return
   }
   ElMessage.info(`即将进入：${item.title}`)
@@ -553,7 +558,6 @@ function onViewAll(name: string) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .bottom-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 20px;
 }
 

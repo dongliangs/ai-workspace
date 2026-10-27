@@ -24,6 +24,7 @@ dist/
 
 # ---------- 用户上传文件（运行时数据，自动创建） ----------
 backend/uploads/
+backend/milvus_data.db/
 
 # ---------- 日志 ----------
 **/logs/

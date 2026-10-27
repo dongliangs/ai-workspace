@@ -48,6 +48,9 @@ class Conversation(Base):
         # 三种类型 chat / knowledge / agent，均支持文件上传
     )
     #创建时间
+    # 知识库绑定（仅 Agent 会话使用）：持久化会话级绑定，
+    # 后续消息未显式指定 kb_id 时沿用；知识库删除后由服务端自愈清理
+    knowledge_base_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,

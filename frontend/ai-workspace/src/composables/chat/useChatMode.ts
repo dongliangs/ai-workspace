@@ -9,6 +9,7 @@ import {
   FileSpreadsheet,
   Calculator,
   BarChart3,
+  BookOpen,
 } from 'lucide-vue-next'
 import { useChatStore } from '@/stores/chat'
 import type { ConversationType } from '@/api/conversation'
@@ -93,6 +94,7 @@ export function useChatMode(mode: ChatMode) {
     { id: 'calculator', name: '计算器', desc: '数学计算', icon: Calculator },
     { id: 'analyze_excel', name: 'Excel 分析', desc: '数据表格分析', icon: FileSpreadsheet },
     { id: 'generate_chart', name: '图表生成', desc: '可视化图表', icon: BarChart3 },
+    { id: 'knowledge_search', name: '知识库检索', desc: '检索绑定的知识库', icon: BookOpen },
   ]
 
   const selectedTools = ref<string[]>([])

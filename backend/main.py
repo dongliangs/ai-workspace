@@ -115,7 +115,7 @@ async def general_exception_handler(
 #配置CORS中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # 开发环境通配
+    allow_origins=["http://localhost:5173","http://localhost:5174"],  # 开发环境通配
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

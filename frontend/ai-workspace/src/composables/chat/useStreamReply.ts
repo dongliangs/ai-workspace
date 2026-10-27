@@ -25,6 +25,8 @@ export function useStreamReply(opts: {
   knowledgeBaseId?: () => number | null
   /** 知识库问答：后端在首次提问时创建会话，通过 done 事件回传 id */
   onKnowledgeConversation?: (id: number) => void
+  /** Agent 模式：当前绑定的知识库 id（Agent 视图提供，随消息发送供 knowledge_search 检索） */
+  agentKnowledgeBaseId?: () => number | null
 }) {
   const {
     messages,
@@ -35,6 +37,7 @@ export function useStreamReply(opts: {
     selectedTools,
     knowledgeBaseId,
     onKnowledgeConversation,
+    agentKnowledgeBaseId,
   } = opts
 
   /** 是否走 Agent 链路（仅 agent 模式；知识库问答走独立 RAG 端点） */
@@ -162,6 +165,9 @@ export function useStreamReply(opts: {
     idx: number,
   ) {
     const tools = selectedTools.value.length ? selectedTools.value : undefined
+    // Agent 绑定的知识库：服务端校验归属后注入 AgentContext（kb_id 对 LLM 不可见）
+    // 显式携带当前状态（含 null=解绑），服务端按会话持久化绑定
+    const kbId = agentKnowledgeBaseId?.() ?? null
 
     try {
       for await (const evt of sendAgentMessageStream(
@@ -170,6 +176,7 @@ export function useStreamReply(opts: {
         {
           fileIds: fileIds.length ? fileIds : undefined,
           tools,
+          kbId,
         },
         { signal: abortCtrl?.signal },
       )) {
@@ -180,7 +187,7 @@ export function useStreamReply(opts: {
           case 'agent_start':
             // Agent 开始，可以添加一个初始"理解任务"步骤
             if (msg.steps) {
-              msg.steps.push({ id: uid(), label: '理解任务', status: 'running' })
+              msg.steps.push({ id: uid(), label: '思考任务', status: 'running' })
             }
             break
 
@@ -366,6 +373,7 @@ export function useStreamReply(opts: {
       calculator: '执行计算',
       analyze_excel: '分析 Excel',
       generate_chart: '生成图表',
+      knowledge_search: '检索知识库',
     }
     return map[tool] ?? tool
   }

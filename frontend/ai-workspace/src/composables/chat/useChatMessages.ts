@@ -4,6 +4,7 @@ import {
   getConversation,
   getMessages,
   type ChatMessageDTO,
+  type Conversation,
 } from '@/api/conversation'
 import type { UploadFile } from '@/components/common/FileUploader.vue'
 import type { ChatMessage } from '@/components/chat/types'
@@ -50,8 +51,14 @@ export function useChatMessages(scrollToBottom: () => void) {
   /**
    * 进入会话时加载：调 GET /conversations/{id} 刷新会话元信息，
    * 再调 GET /conversations/{id}/messages 加载历史消息。
+   *
+   * onMeta：会话元信息加载成功后的回调（如 Agent 会话恢复知识库绑定状态），
+   * 携带最新 loadSeq 判断，避免快速切换会话时旧响应写入。
    */
-  async function loadConversation(conversationId: number) {
+  async function loadConversation(
+    conversationId: number,
+    onMeta?: (conv: Conversation) => void,
+  ) {
     const seq = ++loadSeq
     historyLoading.value = true
     try {
@@ -64,6 +71,7 @@ export function useChatMessages(scrollToBottom: () => void) {
         } else {
           chatStore.sessions.unshift(conv)
         }
+        onMeta?.(conv)
       } catch {
         // 会话信息加载失败不阻塞消息加载，拦截器已弹错
       }

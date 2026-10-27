@@ -82,16 +82,32 @@ async def create_agent_message(
     )
     history_messages = result.scalars().all()
 
-    # 2.1 校验绑定的知识库归属（绑定后 Agent 可通过 knowledge_search 检索）
+    # 2.1 解析生效的知识库绑定（会话级持久化）：
+    #     - 请求显式携带 kb_id（数字）：校验归属后绑定并写入会话
+    #     - 请求显式携带 kb_id=null：解除会话绑定
+    #     - 请求未携带 kb_id：沿用会话已持久化的绑定（知识库被删则视为未绑定并自愈清理）
     kb_id: int = 0
-    if message_data.kb_id is not None:
-        kb = await get_knowledge_base(db, message_data.kb_id, current_user.id)
-        if kb is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="知识库不存在",
-            )
-        kb_id = kb.id
+    if "kb_id" in message_data.model_fields_set:
+        if message_data.kb_id is None:
+            # 显式解绑
+            conversation.knowledge_base_id = None
+        else:
+            kb = await get_knowledge_base(db, message_data.kb_id, current_user.id)
+            if kb is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="知识库不存在",
+                )
+            kb_id = kb.id
+            # 绑定持久化到会话（与下方用户消息同一事务提交）
+            conversation.knowledge_base_id = kb.id
+    elif conversation.knowledge_base_id is not None:
+        # 未显式指定：沿用会话绑定；KB 已被删除则清理绑定（自愈）
+        kb = await get_knowledge_base(db, conversation.knowledge_base_id, current_user.id)
+        if kb is not None:
+            kb_id = kb.id
+        else:
+            conversation.knowledge_base_id = None
 
     # 3. 保存用户消息
     user_message = Message(

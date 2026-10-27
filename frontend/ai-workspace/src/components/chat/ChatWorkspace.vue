@@ -49,75 +49,152 @@
       @stop="stop"
       @uploading-change="(v: boolean) => (hasUploading = v)"
     >
+      <!-- 输入框内部：已选工具高亮文字（加粗 + x 移除，跟在文字后面） -->
+      <template #pill-chips>
+        <div
+          v-if="mode === 'agent' && selectedToolChips.length"
+          class="tool-tags"
+        >
+          <span
+            v-for="t in selectedToolChips"
+            :key="t.id"
+            class="tool-tag"
+          >
+            <span class="tool-tag-name">{{ t.name }}</span>
+            <button
+              type="button"
+              class="tool-tag-x"
+              :title="`移除 ${t.name}`"
+              @click="removeTool(t.id)"
+            >
+              <X class="w-3 h-3" />
+            </button>
+          </span>
+        </div>
+      </template>
+
       <!-- 输入框上方：知识库上下文 chip 等 -->
       <template #before-input>
         <slot name="input-before" />
       </template>
 
-      <!-- 输入框下方：选择工具（仅 Agent 模式） -->
+      <!-- 输入框下方：选择工具 / 绑定知识库（仅 Agent 模式） -->
       <template #actions>
         <div
           v-if="mode === 'agent'"
           class="input-actions-row"
         >
-          <button
-            type="button"
-            class="ghost-btn"
-            :class="{ 'ghost-active': toolPopoverOpen }"
-            @click="toolPopoverOpen = !toolPopoverOpen"
-          >
-            <Wrench class="w-3.5 h-3.5" />
-            <span>选择工具</span>
-            <ChevronDown class="w-3 h-3" />
-          </button>
-
-          <!-- 工具选择下拉 -->
-          <transition name="dropdown">
-            <div
-              v-if="toolPopoverOpen"
-              class="tool-popover"
+          <div class="action-item">
+            <button
+              type="button"
+              class="ghost-btn"
+              :class="{ 'ghost-active': toolPopoverOpen }"
+              @click="toggleToolPopover"
             >
-              <div class="tool-popover-title">
-                选择 Agent 可用工具
-              </div>
-              <label
-                v-for="t in availableTools"
-                :key="t.id"
-                class="tool-option"
+              <Wrench class="w-3.5 h-3.5" />
+              <span>选择工具</span>
+              <ChevronDown class="w-3 h-3" />
+            </button>
+
+            <!-- 工具选择下拉 -->
+            <transition name="dropdown">
+              <div
+                v-if="toolPopoverOpen"
+                class="tool-popover"
               >
-                <input
-                  v-model="selectedTools"
-                  type="checkbox"
-                  :value="t.id"
+                <div class="tool-popover-title">
+                  选择 Agent 可用工具
+                </div>
+                <label
+                  v-for="t in availableTools"
+                  :key="t.id"
+                  class="tool-option"
                 >
-                <component
-                  :is="t.icon"
-                  class="w-4 h-4"
-                />
-                <span class="tool-option-name">{{ t.name }}</span>
-                <span class="tool-option-desc">{{ t.desc }}</span>
-              </label>
-            </div>
-          </transition>
+                  <input
+                    v-model="selectedTools"
+                    type="checkbox"
+                    :value="t.id"
+                  >
+                  <component
+                    :is="t.icon"
+                    class="w-4 h-4"
+                  />
+                  <span class="tool-option-name">{{ t.name }}</span>
+                  <span class="tool-option-desc">{{ t.desc }}</span>
+                </label>
+              </div>
+            </transition>
+          </div>
+
+          <!-- 知识库绑定：选择后随消息发送 kb_id，Agent 可调用 knowledge_search 检索 -->
+          <div class="action-item">
+            <button
+              type="button"
+              class="ghost-btn"
+              :class="{ 'ghost-active': agentKbId != null }"
+              @click="toggleKbPopover"
+            >
+              <BookOpen class="w-3.5 h-3.5" />
+              <span>{{ agentKbName }}</span>
+              <ChevronDown class="w-3 h-3" />
+            </button>
+
+            <!-- 知识库选择下拉 -->
+            <transition name="dropdown">
+              <div
+                v-if="kbPopoverOpen"
+                class="tool-popover kb-popover"
+              >
+                <div class="tool-popover-title">
+                  选择 Agent 检索的知识库
+                </div>
+                <div
+                  v-if="!kbOptions.length"
+                  class="kb-empty"
+                >
+                  暂无知识库，请先在「知识库」页创建并上传文档
+                </div>
+                <button
+                  v-for="kb in kbOptions"
+                  :key="kb.id"
+                  type="button"
+                  class="kb-option"
+                  :class="{ 'is-selected': agentKbId === kb.id }"
+                  @click="selectKb(kb.id)"
+                >
+                  <component
+                    :is="agentKbId === kb.id ? Check : BookOpen"
+                    class="w-4 h-4"
+                  />
+                  <span class="tool-option-name">{{ kb.name }}</span>
+                  <span class="tool-option-desc">{{ kb.doc_count }} 篇文档</span>
+                </button>
+                <div class="kb-popover-tip">
+                  绑定后 Agent 可调用知识库检索工具；点击已选项可取消绑定
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
       </template>
     </ChatInputBar>
 
-    <!-- 点击外部关闭工具弹出层 -->
+    <!-- 点击外部关闭工具/知识库弹出层 -->
     <div
-      v-if="toolPopoverOpen"
+      v-if="toolPopoverOpen || kbPopoverOpen"
       class="popover-backdrop"
-      @click="toolPopoverOpen = false"
+      @click="toolPopoverOpen = false; kbPopoverOpen = false"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
-import { Wrench, ChevronDown } from 'lucide-vue-next'
+import { Wrench, ChevronDown, BookOpen, Check, X } from 'lucide-vue-next'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
+import { useKnowledgeBaseStore } from '@/stores/knowledgeBase'
 import ChatHeader from './ChatHeader.vue'
 import ChatWelcome from './ChatWelcome.vue'
 import MessageList from './MessageList.vue'
@@ -125,6 +202,7 @@ import ChatInputBar from './ChatInputBar.vue'
 import { useChatMode, type ChatMode } from '@/composables/chat/useChatMode'
 import { useChatMessages } from '@/composables/chat/useChatMessages'
 import { useStreamReply } from '@/composables/chat/useStreamReply'
+import type { Conversation } from '@/api/conversation'
 import type { ChatMessage, MessageAttachment, Suggestion } from './types'
 
 // 多词组件名：满足 vue/multi-word-component-names，且便于 devtools 识别
@@ -177,6 +255,92 @@ const resolvedWelcome = computed(() => ({
 }))
 const resolvedPlaceholder = computed(() => props.placeholder ?? placeholder)
 
+/* ------------------------------------------------------------------ */
+/*  Agent 模式：知识库绑定                                            */
+/* ------------------------------------------------------------------ */
+const kbStore = useKnowledgeBaseStore()
+
+/**
+ * Agent 绑定的知识库 id：随每条消息发送 kb_id（服务端校验归属后注入
+ * AgentContext，对 LLM 不可见）。绑定会持久化到会话：切换/重进会话时
+ * 由 loadConversation 的元信息回调恢复（见 restoreAgentKb）。
+ */
+const agentKbId = ref<number | null>(null)
+const kbPopoverOpen = ref(false)
+
+/** 知识库下拉选项（复用 kbStore 列表缓存） */
+const kbOptions = computed(() => kbStore.bases?.items ?? [])
+
+/** 绑定按钮文案：绑定后显示知识库名称 */
+const agentKbName = computed(
+  () => kbOptions.value.find((kb) => kb.id === agentKbId.value)?.name ?? '知识库',
+)
+
+/** 打开/关闭知识库下拉（与工具下拉互斥） */
+function toggleKbPopover() {
+  kbPopoverOpen.value = !kbPopoverOpen.value
+  if (kbPopoverOpen.value) toolPopoverOpen.value = false
+}
+
+/** 打开/关闭工具下拉（与知识库下拉互斥） */
+function toggleToolPopover() {
+  toolPopoverOpen.value = !toolPopoverOpen.value
+  if (toolPopoverOpen.value) kbPopoverOpen.value = false
+}
+
+/** 已选工具 chips 数据（id → 中文名称，用于输入框内高亮展示） */
+const selectedToolChips = computed(() =>
+  availableTools
+    .filter((t) => selectedTools.value.includes(t.id))
+    .map((t) => ({ id: t.id, name: t.name })),
+)
+
+/** 移除已选工具（同步取消工具下拉中的勾选） */
+function removeTool(id: string) {
+  selectedTools.value = selectedTools.value.filter((t) => t !== id)
+}
+
+/**
+ * 选择/取消绑定知识库（点击已选项取消）。
+ * 绑定时若用户已用工具白名单且未勾选 knowledge_search，自动补选，
+ * 避免显式工具列表把检索工具排除在外。
+ */
+function selectKb(id: number) {
+  agentKbId.value = agentKbId.value === id ? null : id
+  if (
+    agentKbId.value != null &&
+    selectedTools.value.length &&
+    !selectedTools.value.includes('knowledge_search')
+  ) {
+    selectedTools.value.push('knowledge_search')
+  }
+  kbPopoverOpen.value = false
+}
+
+// 绑定的知识库被删除时清除选择，避免后续消息携带失效 kb_id
+watch(kbOptions, (items) => {
+  if (agentKbId.value != null && !items.some((kb) => kb.id === agentKbId.value)) {
+    agentKbId.value = null
+  }
+})
+
+/**
+ * 会话元信息回调：恢复 Agent 会话持久化的知识库绑定。
+ * 绑定恢复后若已用工具白名单且未勾选 knowledge_search，自动补选
+ * （与手动绑定行为一致，避免白名单把检索工具排除）。
+ */
+function restoreAgentKb(conv: Conversation) {
+  if (props.mode !== 'agent') return
+  agentKbId.value = conv.knowledge_base_id ?? null
+  if (
+    agentKbId.value != null &&
+    selectedTools.value.length &&
+    !selectedTools.value.includes('knowledge_search')
+  ) {
+    selectedTools.value.push('knowledge_search')
+  }
+}
+
 /* 滚动容器 + 滚动到底部（先于 useChatMessages 定义，供其历史加载后滚动） */
 const bodyRef = ref<HTMLElement | null>(null)
 
@@ -213,6 +377,8 @@ const { loading, stop, runReply } = useStreamReply({
   onKnowledgeConversation: (id) => {
     knowledgeConvId.value = id
   },
+  // Agent 模式：绑定知识库随消息发送（服务端校验归属后注入 AgentContext）
+  agentKnowledgeBaseId: () => agentKbId.value,
 })
 
 /** 网络状态：断网时输入栏上方显示警告条，并阻止发送新消息 */
@@ -251,12 +417,12 @@ watch(
       chatStore.justCreated = false
       return
     }
-    // 切换到已有会话：清空当前消息并加载历史
+    // 切换到已有会话：清空当前消息并加载历史（Agent 会话同时恢复绑定）
     messages.value = []
     attachments.value = []
     hasUploading.value = false
     input.value = ''
-    loadConversation(id)
+    loadConversation(id, restoreAgentKb)
   },
 )
 
@@ -283,12 +449,17 @@ onMounted(() => {
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
 
+  // Agent 模式：预载知识库列表（供绑定下拉；知识库页已加载过则复用缓存）
+  if (props.mode === 'agent' && !kbStore.bases && !kbStore.loading) {
+    kbStore.fetchAll()
+  }
+
   const pending = chatStore.pendingPrompt
   if (pending) {
     chatStore.pendingPrompt = null
     onSend(pending)
   } else if (chatStore.currentId != null) {
-    loadConversation(chatStore.currentId)
+    loadConversation(chatStore.currentId, restoreAgentKb)
   }
 })
 
@@ -425,7 +596,52 @@ async function onCopy(m: ChatMessage) {
   gap: 4px;
   margin-top: 8px;
   padding-left: 8px;
+}
+/* 动作项：按钮 + 弹出层的定位锚点（弹出层相对各自按钮定位） */
+.action-item {
   position: relative;
+  display: flex;
+}
+
+/* 输入框内部：已选工具高亮文字（加粗 + x 移除） */
+.tool-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-self: flex-end;
+  margin-bottom: 8px;
+  padding-right: 2px;
+  max-width: 55%;
+}
+.tool-tag {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.tool-tag-name {
+  color: var(--aws-primary);
+  font-weight: var(--aws-weight-medium, 600);
+  font-size: var(--aws-text-sm);
+}
+.tool-tag-x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--aws-primary);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+.tool-tag-x:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--aws-primary) 12%, transparent);
 }
 .ghost-btn {
   display: flex;
@@ -496,6 +712,46 @@ async function onCopy(m: ChatMessage) {
   color: var(--aws-muted);
   font-size: var(--aws-text-xs);
   margin-left: auto;
+}
+
+/* 知识库选择下拉：选项为按钮（点击已选可取消绑定） */
+.kb-popover {
+  width: 320px;
+}
+.kb-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: var(--aws-radius-sm);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--aws-text-sm);
+  transition: background-color 0.15s;
+}
+.kb-option:hover {
+  background: var(--aws-sidebar-active);
+}
+.kb-option.is-selected {
+  color: var(--aws-primary);
+}
+.kb-option.is-selected .tool-option-name {
+  color: var(--aws-primary);
+}
+.kb-empty {
+  padding: 12px 8px;
+  color: var(--aws-muted);
+  font-size: var(--aws-text-xs);
+}
+.kb-popover-tip {
+  margin-top: 4px;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--aws-divider);
+  color: var(--aws-muted);
+  font-size: var(--aws-text-xs);
 }
 
 /* 弹出层 backdrop */

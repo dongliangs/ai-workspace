@@ -1,7 +1,12 @@
 <template>
   <div class="agent-bubble">
-    <!-- 执行步骤列表 -->
+    <!-- 执行过程区：步骤 + 工具调用卡片（位于正文上方） -->
     <AgentSteps :steps="steps" />
+    <ToolCard
+      v-for="t in tools"
+      :key="t.id"
+      :tool="t"
+    />
 
     <!-- 打字机思考态（无内容且 pending） -->
     <span
@@ -17,19 +22,22 @@
       :content="content"
     />
 
-    <!-- 工具调用卡片（图表渲染在正文下方） -->
-    <ToolCard
-      v-for="t in tools"
-      :key="t.id"
-      :tool="t"
+    <!-- 图表输出：generate_chart 成功后渲染在正文下方 -->
+    <ChartRenderer
+      v-for="c in charts"
+      :key="c.id"
+      :option="c.option"
+      :title="c.title"
     />
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import MarkdownContent from './MarkdownContent.vue'
 import AgentSteps from './AgentSteps.vue'
 import ToolCard from './ToolCard.vue'
+import ChartRenderer from './ChartRenderer.vue'
 
 /** Agent 执行步骤 */
 export interface AgentStep {
@@ -47,12 +55,26 @@ export interface ToolInvocation {
   result?: unknown
 }
 
-defineProps<{
+const props = defineProps<{
   content: string
   steps: AgentStep[]
   tools: ToolInvocation[]
   pending?: boolean
 }>()
+
+/** generate_chart 成功的图表输出（从工具结果提取，渲染在正文下方） */
+const charts = computed(() => {
+  const list: Array<{ id: number; option: Record<string, any>; title: string }> = []
+  for (const t of props.tools) {
+    if (t.tool !== 'generate_chart' || t.status !== 'success') continue
+    const result = t.result as Record<string, any> | undefined
+    const option = result?.echarts_option
+    if (option) {
+      list.push({ id: t.id, option, title: (result?.title as string) ?? '' })
+    }
+  }
+  return list
+})
 </script>
 
 <style scoped>

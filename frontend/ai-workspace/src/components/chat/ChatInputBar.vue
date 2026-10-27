@@ -45,6 +45,9 @@
         @keydown.enter.exact.prevent="onEnter"
       />
 
+      <!-- 输入框内部 chips 插槽（Agent 已选工具等，跟在文字后面展示） -->
+      <slot name="pill-chips" />
+
       <button
         type="button"
         class="send-circle"

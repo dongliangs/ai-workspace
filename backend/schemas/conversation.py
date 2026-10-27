@@ -25,6 +25,8 @@ class ConversationResponse(BaseModel):
     user_id: int
     title: str
     type: str
+    # Agent 会话持久化绑定的知识库 id（前端进入会话时恢复绑定状态）
+    knowledge_base_id: int | None = None
     created_at: datetime
     updated_at: datetime
 

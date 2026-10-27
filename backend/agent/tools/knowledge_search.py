@@ -21,10 +21,27 @@ Knowledge Search 工具 —— Agent 调用知识库检索。
 import logging
 from typing import Any
 
+from sqlalchemy import select
+
 from agent.schema import ToolDefinition
+from db.session import AsyncSessionLocal
 from knowledge.retrieval import retrieve
+from models.document import KnowledgeDocument
 
 logger = logging.getLogger(__name__)
+
+
+async def _fetch_document_filenames(document_ids: set[int]) -> dict[int, str]:
+    """批量查询文档 id → 文件名映射（文档可能已被删除，缺省为空串）"""
+    if not document_ids:
+        return {}
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(KnowledgeDocument.id, KnowledgeDocument.filename).where(
+                KnowledgeDocument.id.in_(document_ids)
+            )
+        )
+        return {doc_id: filename for doc_id, filename in result.all()}
 
 
 async def knowledge_search_handler(
@@ -67,6 +84,11 @@ async def knowledge_search_handler(
             "question": question,
         }
 
+    # 查询命中片段所属文档的文件名（LLM 引用来源时需要，document_id 本身不可读）
+    _doc_filenames = await _fetch_document_filenames(
+        {chunk["document_id"] for chunk in chunks}
+    )
+
     # 组装检索片段摘要（传给 LLM，不需要完整向量数据）
     fragments = []
     for i, chunk in enumerate(chunks, 1):
@@ -74,6 +96,7 @@ async def knowledge_search_handler(
             "index": i,
             "content": chunk["content"][:500],  # 截断防 token 过长
             "document_id": chunk["document_id"],
+            "filename": _doc_filenames.get(chunk["document_id"], ""),
             "page_number": chunk.get("page_number", -1),
             "score": round(chunk.get("score", 0.0), 4),
         })

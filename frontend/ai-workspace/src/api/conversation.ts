@@ -19,6 +19,8 @@ export interface Conversation {
   user_id: number
   title: string
   type: ConversationType
+  /** Agent 会话持久化绑定的知识库 id（进入会话时恢复绑定状态；null=未绑定） */
+  knowledge_base_id?: number | null
 }
 
 /** 消息对象（后端 messages 表，发送消息接口返回的 assistant 消息） */
@@ -142,8 +144,11 @@ export interface AgentStreamParams {
   fileIds?: number[]
   /** 指定使用的工具列表（不传则由 Agent 自行决定） */
   tools?: string[]
-  /** 绑定的知识库 ID：绑定后 Agent 可调用 knowledge_search 检索该知识库 */
-  kbId?: number
+  /**
+   * 绑定的知识库 ID：数字=绑定（服务端校验并持久化到会话），
+   * null=显式解除会话绑定，undefined=不携带（沿用服务端会话绑定）
+   */
+  kbId?: number | null
 }
 
 /**
@@ -172,7 +177,8 @@ export async function* sendAgentMessageStream(
   const payload: Record<string, unknown> = { content }
   if (params.fileIds && params.fileIds.length) payload.file_ids = params.fileIds
   if (params.tools && params.tools.length) payload.tools = params.tools
-  if (params.kbId) payload.kb_id = params.kbId
+  // kbId 语义：数字=绑定，null=显式解绑（均需携带），undefined=不携带（沿用服务端绑定）
+  if (params.kbId !== undefined) payload.kb_id = params.kbId
 
   for await (const raw of stream(`/agent/${conversationId}/messages`, payload, options)) {
     try {
