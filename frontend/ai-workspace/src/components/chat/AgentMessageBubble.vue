@@ -64,7 +64,7 @@ const props = defineProps<{
 
 /** generate_chart 成功的图表输出（从工具结果提取，渲染在正文下方） */
 const charts = computed(() => {
-  const list: Array<{ id: number; option: Record<string, any>; title: string }> = []
+  const list: { id: number; option: Record<string, any>; title: string }[] = []
   for (const t of props.tools) {
     if (t.tool !== 'generate_chart' || t.status !== 'success') continue
     const result = t.result as Record<string, any> | undefined

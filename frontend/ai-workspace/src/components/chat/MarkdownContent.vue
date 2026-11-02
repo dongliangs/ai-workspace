@@ -116,7 +116,7 @@ function parse(src: string): Segment[] {
  */
 function renderTextBlock(text: string): string {
   // 1. 先转义 HTML，防止 XSS
-  let safe = escapeHtml(text)
+  const safe = escapeHtml(text)
 
   // 2. 按行处理
   const lines = safe.split('\n')
@@ -185,12 +185,21 @@ function renderTextBlock(text: string): string {
       const content = pureBold[1]
       const isSentence = content.length > 20 || /[。，！？；]$/.test(content)
       if (!isSentence) {
-        // 标题：自动加序号
         closeLists()
-        autoHeadingNum++
-        out.push(
-          `<p class="md-heading"><span class="md-heading-num">${autoHeadingNum}.</span><strong>${content}</strong></p>`,
-        )
+        // 模型可能把编号写进加粗标题（如 **4. 性能优化与渲染**）：
+        // 已有编号时沿用原编号，不再自动追加，避免出现「1. 4. ...」双重序号
+        const numbered = content.match(/^(\d{1,2}[.．、)）])\s*(.+)$/)
+        if (numbered) {
+          out.push(
+            `<p class="md-heading"><span class="md-heading-num">${numbered[1]}</span><strong>${numbered[2]}</strong></p>`,
+          )
+        } else {
+          // 无编号的加粗标题：保留自动序号
+          autoHeadingNum++
+          out.push(
+            `<p class="md-heading"><span class="md-heading-num">${autoHeadingNum}.</span><strong>${content}</strong></p>`,
+          )
+        }
         continue
       }
       // 强调句：不加序号，走普通段落

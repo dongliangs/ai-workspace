@@ -4,7 +4,7 @@ AgentContext + AgentRuntime (ReAct 循环) 单元测试。
 使用 mock LLM 响应，不依赖真实 AI 服务。
 """
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 from agent.runtime import AgentContext, AgentRuntime
 from agent.registry import ToolRegistry
@@ -13,6 +13,7 @@ from tests.conftest import (
     MockToolCall,
     make_text_response,
     make_tool_call_response,
+    stream_of,
 )
 
 
@@ -83,8 +84,8 @@ class TestAgentRuntimeNoTools:
         ctx = AgentContext("sys")
         ctx.add_user_message("你好")
 
-        with patch("agent.runtime.chat_with_tools", new_callable=AsyncMock) as mock_llm:
-            mock_llm.return_value = make_text_response("你好，我是 Agent")
+        with patch("agent.runtime.chat_with_tools_stream", new_callable=MagicMock) as mock_llm:
+            mock_llm.return_value = stream_of(make_text_response("你好，我是 Agent"))
             events = [e async for e in runtime.run(ctx)]
 
         # 事件：agent_start → text → 结束（done 由 service 发）
@@ -121,9 +122,9 @@ class TestAgentRuntimeWithTools:
             make_text_response("回显结果：hello"),
         ]
 
-        with patch("agent.runtime.chat_with_tools", new_callable=AsyncMock) as mock_llm, \
+        with patch("agent.runtime.chat_with_tools_stream", new_callable=MagicMock) as mock_llm, \
              patch("agent.executor.registry", reg):
-            mock_llm.side_effect = responses
+            mock_llm.side_effect = [stream_of(r) for r in responses]
             events = [e async for e in runtime.run(ctx)]
 
         # 事件流：
@@ -175,9 +176,9 @@ class TestAgentRuntimeWithTools:
             make_text_response("工具执行失败了，我换个方法"),
         ]
 
-        with patch("agent.runtime.chat_with_tools", new_callable=AsyncMock) as mock_llm, \
+        with patch("agent.runtime.chat_with_tools_stream", new_callable=MagicMock) as mock_llm, \
              patch("agent.executor.registry", reg):
-            mock_llm.side_effect = responses
+            mock_llm.side_effect = [stream_of(r) for r in responses]
             events = [e async for e in runtime.run(ctx)]
 
         # tool_result 事件应为 error 状态
@@ -197,7 +198,7 @@ class TestAgentRuntimeWithTools:
         ctx = AgentContext("sys")
         ctx.add_user_message("test")
 
-        with patch("agent.runtime.chat_with_tools", new_callable=AsyncMock) as mock_llm:
+        with patch("agent.runtime.chat_with_tools_stream", new_callable=MagicMock) as mock_llm:
             mock_llm.side_effect = ConnectionError("网络错误")
             events = [e async for e in runtime.run(ctx)]
 
@@ -221,8 +222,8 @@ class TestAgentRuntimeWithTools:
             [MockToolCall("call_x", "echo", {"text": "loop"})],
         )
 
-        with patch("agent.runtime.chat_with_tools", new_callable=AsyncMock) as mock_llm:
-            mock_llm.return_value = response
+        with patch("agent.runtime.chat_with_tools_stream", new_callable=MagicMock) as mock_llm:
+            mock_llm.side_effect = lambda *a, **kw: stream_of(response)
             events = [e async for e in runtime.run(ctx)]
 
         # 最后一条事件应提示达到最大轮次
@@ -250,9 +251,9 @@ class TestAgentRuntimeWithTools:
             make_text_response("done"),
         ]
 
-        with patch("agent.runtime.chat_with_tools", new_callable=AsyncMock) as mock_llm, \
+        with patch("agent.runtime.chat_with_tools_stream", new_callable=MagicMock) as mock_llm, \
              patch("agent.executor.registry", reg):
-            mock_llm.side_effect = responses
+            mock_llm.side_effect = [stream_of(r) for r in responses]
             _ = [e async for e in runtime.run(ctx)]
 
         # 第二次调用时，messages 应包含 tool 角色消息
@@ -278,9 +279,9 @@ class TestAgentRuntimeWithTools:
         ctx = AgentContext("sys")
         ctx.add_user_message("test")
 
-        with patch("agent.runtime.chat_with_tools", new_callable=AsyncMock) as mock_llm, \
+        with patch("agent.runtime.chat_with_tools_stream", new_callable=MagicMock) as mock_llm, \
              patch("agent.executor.registry", reg):
-            mock_llm.return_value = make_text_response("done")
+            mock_llm.return_value = stream_of(make_text_response("done"))
             _ = [e async for e in runtime.run(ctx, tool_names=["echo"])]
 
         # 传给 LLM 的 tools 只应包含 echo（第二个位置参数）
@@ -308,9 +309,9 @@ class TestAgentRuntimeWithTools:
             make_text_response("两个都回显了"),
         ]
 
-        with patch("agent.runtime.chat_with_tools", new_callable=AsyncMock) as mock_llm, \
+        with patch("agent.runtime.chat_with_tools_stream", new_callable=MagicMock) as mock_llm, \
              patch("agent.executor.registry", reg):
-            mock_llm.side_effect = responses
+            mock_llm.side_effect = [stream_of(r) for r in responses]
             events = [e async for e in runtime.run(ctx)]
 
         # 应有 2 个 tool_start 和 2 个 tool_result

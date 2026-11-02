@@ -33,7 +33,7 @@ from agent.executor import execute_tool
 from agent.prompts import SYSTEM_PROMPT
 from agent.registry import ToolRegistry, registry
 from agent.schema import ToolResult
-from services.llm_service import chat_with_tools
+from services.llm_service import chat_with_tools_stream
 
 logger = logging.getLogger(__name__)
 
@@ -129,50 +129,71 @@ class AgentRuntime:
         for iteration in range(MAX_ITERATIONS):
             logger.info("ReAct 第 %d 轮 (Thought)", iteration + 1)
 
-            # ---- 1. THOUGHT: 调用 LLM ----
+            # ---- 1. THOUGHT: 流式调用 LLM ----
+            # 文本增量边生成边推送；tool_calls 以增量碎片形式返回，按 index 拼装
+            text_parts: list[str] = []
+            pending_calls: dict[int, dict[str, str]] = {}
             try:
-                response = await chat_with_tools(context.messages, tool_defs)
+                async for evt in chat_with_tools_stream(context.messages, tool_defs):
+                    if evt["type"] == "text":
+                        text_parts.append(evt["content"])
+                        yield {"type": "text", "content": evt["content"]}
+                        continue
+
+                    idx = evt.get("index")
+                    if idx is None:
+                        idx = 0
+                    acc = pending_calls.setdefault(
+                        idx, {"id": "", "name": "", "arguments": ""}
+                    )
+                    if evt.get("id"):
+                        acc["id"] = evt["id"]
+                    if evt.get("name"):
+                        acc["name"] += evt["name"]
+                    if evt.get("arguments"):
+                        acc["arguments"] += evt["arguments"]
             except Exception as e:
                 logger.exception("LLM 调用失败")
                 yield {"type": "text", "content": f"Agent 调用 AI 服务时出错: {e}"}
                 return
 
-            message = response.choices[0].message
+            content = "".join(text_parts) or None
 
-            # 推理文本 → 推送给前端
-            if message.content:
-                yield {"type": "text", "content": message.content}
-
-            # ---- 2. FINAL: 无 tool_calls → 最终回答 ----
-            if not message.tool_calls:
+            # ---- 2. FINAL: 无 tool_calls → 最终回答（文本已在流式过程中推送）----
+            if not pending_calls:
                 logger.info("Agent 完成，共 %d 轮", iteration + 1)
                 return
+
+            tool_calls = [pending_calls[i] for i in sorted(pending_calls)]
+            # 兜底：个别服务只在首帧给 id，缺失时补一个
+            for i, tc in enumerate(tool_calls):
+                tc["id"] = tc["id"] or f"call_{iteration}_{i}"
 
             # ---- 3. ACTION: 构造 assistant 消息加入上下文 ----
             assistant_msg: dict[str, Any] = {
                 "role": "assistant",
-                "content": message.content,
+                "content": content,
                 "tool_calls": [
                     {
-                        "id": tc.id,
+                        "id": tc["id"],
                         "type": "function",
                         "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
+                            "name": tc["name"],
+                            "arguments": tc["arguments"] or "{}",
                         },
                     }
-                    for tc in message.tool_calls
+                    for tc in tool_calls
                 ],
             }
             context.add_assistant_message(assistant_msg)
 
             # ---- 4. ACTION + OBSERVATION: 执行每个工具 ----
-            for tc in message.tool_calls:
-                tool_name = tc.function.name
+            for tc in tool_calls:
+                tool_name = tc["name"]
 
                 # 解析 LLM 生成的参数
                 try:
-                    arguments = json.loads(tc.function.arguments)
+                    arguments = json.loads(tc["arguments"]) if tc["arguments"] else {}
                 except (json.JSONDecodeError, TypeError):
                     arguments = {}
 
@@ -203,7 +224,7 @@ class AgentRuntime:
                 }
 
                 # Observation: 工具结果加入上下文，供下一轮 LLM 使用
-                context.add_tool_result(tc.id, result.to_content())
+                context.add_tool_result(tc["id"], result.to_content())
 
         # 超过最大迭代次数
         logger.warning("Agent 达到最大循环次数 %d", MAX_ITERATIONS)

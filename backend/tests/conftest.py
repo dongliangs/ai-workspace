@@ -63,6 +63,38 @@ def make_tool_call_response(
     return MockResponse(MockMessage(content=content, tool_calls=tool_calls))
 
 
+def make_stream_events(response: MockResponse) -> list[dict]:
+    """把非流式 mock 响应转换成 chat_with_tools_stream 的事件序列"""
+    events: list[dict] = []
+    message = response.choices[0].message
+    if message.content:
+        events.append({"type": "text", "content": message.content})
+    for i, tc in enumerate(message.tool_calls or []):
+        events.append(
+            {
+                "type": "tool_call_delta",
+                "index": i,
+                "id": tc.id,
+                "name": tc.function.name,
+                "arguments": tc.function.arguments,
+            }
+        )
+    return events
+
+
+def stream_of(response: MockResponse):
+    """
+    生成一个可 async for 迭代的流式 mock。
+
+    每次调用都构造新的生成器，避免同一生成器被重复迭代（多轮 ReAct 场景）。
+    """
+    async def _gen():
+        for evt in make_stream_events(response):
+            yield evt
+
+    return _gen()
+
+
 # ── 测试用工具定义和 handler ─────────────────────────────────────────
 
 @pytest.fixture
