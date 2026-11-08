@@ -230,6 +230,7 @@ def _build_pie_option(
 
 async def generate_chart_handler(
     file_id: int,
+    user_id: int,
     chart_type: str,
     title: str,
     category_column: str,
@@ -245,6 +246,7 @@ async def generate_chart_handler(
 
     Args:
         file_id:          文件 ID
+        user_id:          当前用户 ID（由 Executor 从服务端上下文注入）
         chart_type:       图表类型：bar=柱状图, line=折线图, pie=饼图
         title:            图表标题
         category_column:  分类列名（横轴 / 饼图标签）
@@ -277,7 +279,12 @@ async def generate_chart_handler(
 
     # 2. 从数据库查文件
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(File).where(File.id == file_id))
+        result = await db.execute(
+            select(File).where(
+                File.id == file_id,
+                File.user_id == user_id,
+            )
+        )
         file_record = result.scalar_one_or_none()
 
     if file_record is None:

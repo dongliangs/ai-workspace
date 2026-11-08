@@ -141,7 +141,6 @@ async def login(
     result = await db.execute(
         select(User).where(User.email == data.email)
     )
-
     # 获取 User。
     user = result.scalar_one_or_none()
 
@@ -149,9 +148,7 @@ async def login(
     # =========================
     # 2. 用户不存在
     # =========================
-
     if not user:
-
         # 注意这里不告诉用户：
         # “这个邮箱不存在”
         # 而统一返回：

@@ -75,12 +75,12 @@ async def create_agent_message(
         )
 
     # 2. 查询历史消息
-    result = await db.execute(
+    result1 = await db.execute(
         select(Message)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at.asc())
     )
-    history_messages = result.scalars().all()
+    history_messages = result1.scalars().all()
 
     # 2.1 解析生效的知识库绑定（会话级持久化）：
     #     - 请求显式携带 kb_id（数字）：校验归属后绑定并写入会话

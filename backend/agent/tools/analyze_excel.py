@@ -198,6 +198,7 @@ def _analyze_group_by(df: pd.DataFrame, sheet_names: list[str], selected_sheet: 
 
 async def analyze_excel_handler(
     file_id: int,
+    user_id: int,
     analysis_type: str = "overview",
     sheet_name: str | None = None,
     column: str | None = None,
@@ -211,6 +212,7 @@ async def analyze_excel_handler(
 
     Args:
         file_id:          文件 ID（从上下文中获取，对应 File 表主键）
+        user_id:          当前用户 ID（由 Executor 从服务端上下文注入）
         analysis_type:    分析类型：overview | statistics | group_by
         sheet_name:       工作表名称，不填则使用第一个
         column:           statistics 模式下要统计的列名
@@ -224,7 +226,12 @@ async def analyze_excel_handler(
     """
     # 1. 从数据库查文件记录
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(File).where(File.id == file_id))
+        result = await db.execute(
+            select(File).where(
+                File.id == file_id,
+                File.user_id == user_id,
+            )
+        )
         file_record = result.scalar_one_or_none()
 
     if file_record is None:
