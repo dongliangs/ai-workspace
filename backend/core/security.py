@@ -1,61 +1,76 @@
-# datetime 计算JWT 什么时候过期
+import base64
 from datetime import datetime, timedelta, timezone
-import cryptography
+from pathlib import Path
 
-# 生成和解析JWT Token
 import jwt
-# from dns.dnssecalgs import algorithms
-
-# 安全对用户密码进行哈希处理
-
-from pwdlib import PasswordHash
-
-# Depends 用于声明依赖
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from fastapi import Depends, HTTPException, status
-
-#HttpBearer 用于从请求头中获取
-#Authorization: Bearer
-
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-#SQLAlchemy 异步 Session
+from pwdlib import PasswordHash
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-#查询User
-
-from sqlalchemy import select
-
-# 数据库依赖
-from db.session import get_db
-
-# User 模型
-from models.user import User
-#获取项目配置。
 from core.config import settings
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from cryptography.hazmat.primitives import hashes
-import base64
+from db.session import get_db
+from models.user import User
 
 
-# ===================== RSA 密钥对管理 =====================
-# 服务启动时自动生成 2048 位 RSA 密钥对。
-#   - 私钥始终保留在内存中，不落盘、不暴露给前端
-#   - 公钥通过 /auth/public-key 接口返回给前端，前端用公钥加密密码
-# 每次服务重启会生成新的密钥对，意味着重启后前端缓存的旧公钥会失效，
-# 前端需要在登录/注册时重新获取公钥。
+# RSA 私钥不再由进程随机生成，而是由所有 worker 从同一个密钥文件加载。
+# 模块导入时只声明状态，真正的加载和校验放在应用 lifespan 启动阶段。
+_rsa_private_key: rsa.RSAPrivateKey | None = None
+_rsa_public_key_pem: str | None = None
 
-# 生成 RSA 密钥对（2048 位）
-_rsa_private_key = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048,
-)
 
-# 导出公钥为 PEM 格式字符串（SPKI），用于暴露给前端
-_rsa_public_key_pem = _rsa_private_key.public_key().public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo,
-).decode("utf-8")
+def load_rsa_private_key(
+    key_path: str | Path,
+    password: str | None = None,
+) -> rsa.RSAPrivateKey:
+    """读取 PEM 私钥并校验类型和最小长度。"""
+    path = Path(key_path)
+    if not path.is_file():
+        raise RuntimeError(f"RSA private key file not found: {path}")
+
+    try:
+        private_key = serialization.load_pem_private_key(
+            path.read_bytes(),
+            password=password.encode("utf-8") if password else None,
+        )
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Unable to load RSA private key") from exc
+
+    if not isinstance(private_key, rsa.RSAPrivateKey):
+        raise RuntimeError("Configured RSA key is not a private RSA key")
+    if private_key.key_size < 2048:
+        raise RuntimeError("RSA private key must be at least 2048 bits")
+    return private_key
+
+
+def initialize_rsa_keys() -> None:
+    """在应用启动时加载固定私钥，并派生供前端使用的公钥。"""
+    global _rsa_private_key, _rsa_public_key_pem
+
+    password = (
+        settings.rsa_private_key_password.get_secret_value()
+        if settings.rsa_private_key_password is not None
+        else None
+    )
+    private_key = load_rsa_private_key(
+        settings.rsa_private_key_path,
+        password=password,
+    )
+
+    _rsa_private_key = private_key
+    _rsa_public_key_pem = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode("utf-8")
+
+
+def _require_private_key() -> rsa.RSAPrivateKey:
+    if _rsa_private_key is None:
+        raise RuntimeError("RSA keys are not initialized")
+    return _rsa_private_key
 
 #创建密码哈希工具
 password_hash = PasswordHash.recommended()
@@ -63,21 +78,26 @@ password_hash = PasswordHash.recommended()
 # 获取公钥 PEM 字符串，供 /auth/public-key 接口返回给前端
 def get_public_key_pem() -> str:
     """返回当前 RSA 公钥的 PEM 字符串（SPKI 格式）。"""
+    if _rsa_public_key_pem is None:
+        raise RuntimeError("RSA keys are not initialized")
     return _rsa_public_key_pem
 
 # 解密
-def decrypt_password ( encrypted_password: str ) -> str :
+def decrypt_password(encrypted_password: str) -> str:
     """用 RSA 私钥解密前端公钥加密的密码，返回明文密码。"""
-    ciphertext = base64.b64decode(encrypted_password)
-    plaintext = _rsa_private_key.decrypt(
-        ciphertext,
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label= None ,
-        ),
-    )
-    return plaintext.decode( "utf-8" )
+    try:
+        ciphertext = base64.b64decode(encrypted_password, validate=True)
+        plaintext = _require_private_key().decrypt(
+            ciphertext,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            ),
+        )
+        return plaintext.decode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("密码密文格式无效") from exc
 
 #对用户密码进行哈希
 

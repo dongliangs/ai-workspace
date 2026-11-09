@@ -22,6 +22,9 @@ design/
 .env
 .env.*
 !.env.example
+secrets/
+*.pem
+*.key
 
 # ===== 日志 =====
 *.log

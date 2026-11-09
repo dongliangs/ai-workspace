@@ -10,7 +10,9 @@ ENV PYTHONUNBUFFERED=1 \
     # HuggingFace 模型缓存目录（挂载卷持久化，重建容器不重新下载 BGE 模型）
     HF_HOME=/app/hf_cache \
     # 国内服务器直连 huggingface.co 不通，走 hf-mirror 镜像
-    HF_ENDPOINT=https://hf-mirror.com
+    HF_ENDPOINT=https://hf-mirror.com \
+    # 生产环境通过 secret 或只读卷挂载固定私钥
+    RSA_PRIVATE_KEY_PATH=/run/secrets/auth_rsa_private_key.pem
 
 WORKDIR /app
 
@@ -41,7 +43,6 @@ EXPOSE 8000
 HEALTHCHECK --start-period=60s --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs', timeout=3)" || exit 1
 
-# 重要：必须单进程运行！
-# RSA 公私钥对是进程内存态（每次启动重新生成），多 worker 会导致
-# 前端从 A 进程拿公钥加密、请求落到 B 进程解密失败
+# 当前仍以单进程运行；RSA 私钥已经持久化，后续切换多 worker 时
+# 需要确保每个 worker 都能只读访问同一个 /run/secrets 密钥文件。
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -19,6 +19,7 @@ from api.knowledge_chat import router as knowledge_chat_router
 from api.generation import router as generation_router
 from agent.bootstrap import register_all_tools
 from core.async_execution import shutdown_executors
+from core.security import initialize_rsa_keys
 #导入数据库engine
 from db.session import engine
 
@@ -44,6 +45,8 @@ async def create_tables():
 #使用 lifespan 管理应用启动事件
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 所有 worker 启动时加载同一份持久化私钥，配置错误时直接拒绝启动。
+    initialize_rsa_keys()
     await create_tables()
     register_all_tools()  # 注册 Agent 工具到全局 registry
     # V0.3: 初始化 Milvus-lite collection

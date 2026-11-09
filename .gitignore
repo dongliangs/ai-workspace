@@ -54,6 +54,12 @@ desktop.ini
 .env
 .env.*
 !.env.example
+!.env.docker.example
+
+# ---------- RSA 等密钥文件 ----------
+**/secrets/
+**/*.pem
+**/*.key
 
 # ---------- 类型检查缓存 ----------
 *.tsbuildinfo

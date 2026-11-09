@@ -3,7 +3,7 @@
 #
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 # Setting 是整个项目的配置类。
 #
@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     # JWT Token 的有效时间，单位：分钟
     access_token_expire_minutes: int = 60
+
+    # 前端使用 RSA 公钥加密密码，后端启动时从该文件加载固定私钥。
+    # 生产环境建议挂载到 /run/secrets/auth_rsa_private_key.pem。
+    rsa_private_key_path: str = "secrets/auth_rsa_private_key.pem"
+    # 私钥文件如果使用口令加密，通过该配置提供口令；普通 PEM 保持为空。
+    rsa_private_key_password: SecretStr | None = None
 
     deepseek_api_key: str
     deepseek_model: str = "deepseek-flash"

@@ -132,7 +132,9 @@ ai-workSpace/
 3. 后端私钥解密 → Argon2 哈希校验/存储 → 签发 JWT
 4. 前端 localStorage 持久化 token，请求拦截器自动注入 `Authorization: Bearer`
 
-> RSA 密钥对在服务启动时内存生成，重启后失效。**生产部署必须单进程**，不能用多 worker。
+> RSA 私钥从固定 PEM 文件加载，不再随进程启动重新生成。开发环境默认读取
+> `backend/secrets/auth_rsa_private_key.pem`，生产环境通过 Docker secret 或只读卷挂载。
+> 密钥生成、轮换和备份方式见 [backend/RSA_KEY_MANAGEMENT.md](backend/RSA_KEY_MANAGEMENT.md)。
 
 ## 数据模型
 
@@ -157,6 +159,11 @@ pip install -r requirements.txt
 # 配置 .env（参考下方环境变量）
 # 确保 MySQL 已启动且 ai_workspace 库已创建
 
+# 首次启动前生成固定 RSA 私钥（不要提交到 Git）
+mkdir -p secrets
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+  -out secrets/auth_rsa_private_key.pem
+
 uvicorn main:app --reload --port 8000
 ```
 
@@ -179,6 +186,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 DEEPSEEK_API_KEY=sk-xxx
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-flash
+
+# RSA 私钥路径（默认值）；口令加密的 PEM 才需要配置密码
+RSA_PRIVATE_KEY_PATH=secrets/auth_rsa_private_key.pem
+# RSA_PRIVATE_KEY_PASSWORD=
 
 # 知识库/RAG（可选，以下为默认值）
 # MILVUS_DB_PATH=milvus_data.db
@@ -230,6 +241,7 @@ def register_all_tools():
 
 - **数据库**：MySQL 8，建独立账号，配置 `DATABASE_URL`
 - **后端**：`uvicorn main:app --host 127.0.0.1 --port 8000`，systemd 托管，**单进程**（Python 3.12）
+- **RSA 私钥**：通过 Docker secret 或只读卷挂载到 `/run/secrets/auth_rsa_private_key.pem`，不要打包进镜像
 - **前端**：`pnpm build` → `dist/` 静态文件交给 Nginx
 - **Nginx**：同域反代 `/api/` 到后端（不剥离前缀，后端路由自带 `/api`），SSE 场景需 `proxy_buffering off`
 - **uploads/**：运行时用户数据，需备份，Docker 部署挂卷

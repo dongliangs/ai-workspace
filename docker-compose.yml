@@ -47,6 +47,9 @@ services:
       DATABASE_URL: mysql+aiomysql://ai_workspace:${MYSQL_PASSWORD}@mysql:3306/ai_workspace?charset=utf8mb4
       # 认证密钥（必填，强随机值）
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      # RSA 私钥由 Docker secret 只读挂载，不能打进镜像或提交到 Git
+      RSA_PRIVATE_KEY_PATH: /run/secrets/auth_rsa_private_key.pem
+      RSA_PRIVATE_KEY_PASSWORD: ${RSA_PRIVATE_KEY_PASSWORD:-}
       # DeepSeek LLM
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
@@ -62,7 +65,9 @@ services:
       # 仅绑定宿主机回环地址：服务器上 curl 冒烟测试用；
       # 公网流量后续由 nginx 容器在内部网络反代 backend:8000，不直接暴露
       - "127.0.0.1:8000:8000"
-    # RSA 密钥内存态 + torch 常驻模型，锁 2G 防止把 4G 机器打爆
+    secrets:
+      - auth_rsa_private_key
+    # torch 常驻模型 + Milvus-lite，锁 2G 防止把 4G 机器打爆
     mem_limit: 2g
 
   # ---------- 前端 nginx（待 frontend dist 构建好后追加） ----------
@@ -83,3 +88,8 @@ volumes:
   uploads-data:
   milvus-data:
   hf-cache:
+
+secrets:
+  auth_rsa_private_key:
+    # 仓库根目录执行 docker compose 时使用该路径
+    file: ./backend/secrets/auth_rsa_private_key.pem

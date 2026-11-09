@@ -66,8 +66,14 @@ async def register(
 ):
     # 先解密加密密码再判断校验
     # 解密前端 RSA 加密的密码（password 和 confirm_password 都要解）
-    data.password = decrypt_password(data.password)
-    data.confirm_password = decrypt_password(data.confirm_password)
+    try:
+        data.password = decrypt_password(data.password)
+        data.confirm_password = decrypt_password(data.confirm_password)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="密码密文格式无效",
+        )
 
     #检查两次密码是否一致
     if data.password != data.confirm_password:
@@ -165,7 +171,13 @@ async def login(
     # 3. 验证密码
     # =========================
     # 解密前端RSA 的加密密码
-    data.password = decrypt_password(data.password)
+    try:
+        data.password = decrypt_password(data.password)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="密码密文格式无效",
+        )
     # verify_password() 会验证两者是否匹配。
     if not verify_password(
         data.password,
