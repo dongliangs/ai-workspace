@@ -20,6 +20,27 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-flash"
     deepseek_base_url: str = "https://api.deepseek.com"
 
+    # ---- LLM 调用可靠性配置 ----
+    # 单次请求（非流式响应或建立流式连接）的最长等待时间，单位：秒。
+    llm_request_timeout_seconds: float = Field(default=60.0, gt=0)
+    # 流式响应两次数据片之间的最大空闲时间。超过该时间视为上游卡死，
+    # 主动关闭连接并按普通超时处理，避免 SSE 长时间没有任何反馈。
+    llm_stream_idle_timeout_seconds: float = Field(default=30.0, gt=0)
+    # 单次流式生成的总时长上限，单位：秒。即使上游持续缓慢输出，
+    # 也不能无限占用连接和服务器资源。
+    llm_stream_total_timeout_seconds: float = Field(default=300.0, gt=0)
+    # 上游调用失败后的最大重试次数（不包含第一次正式调用）。
+    llm_max_retries: int = Field(default=2, ge=0)
+    # 指数退避的基础等待时间和最大等待时间，单位：秒。
+    llm_retry_base_delay_seconds: float = Field(default=0.5, ge=0)
+    llm_retry_max_delay_seconds: float = Field(default=4.0, ge=0)
+    # 连续多少次完整调用失败后打开熔断器。
+    llm_circuit_failure_threshold: int = Field(default=5, ge=1)
+    # 熔断器冷却时间，冷却结束后才会放行半开探测请求。
+    llm_circuit_recovery_timeout_seconds: float = Field(default=30.0, gt=0)
+    # 半开状态下允许同时通过的最大探测请求数。
+    llm_circuit_half_open_max_calls: int = Field(default=1, ge=1)
+
     # ---- 文件上传配置 ----
     # 文件存储根目录（相对于项目根目录）
     upload_dir: str = "uploads"
