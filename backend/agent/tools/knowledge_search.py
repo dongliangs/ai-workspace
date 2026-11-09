@@ -24,6 +24,7 @@ from typing import Any
 from sqlalchemy import select
 
 from agent.schema import ToolDefinition
+from core.async_execution import run_retrieval_sync
 from db.session import AsyncSessionLocal
 from knowledge.retrieval import retrieve
 from models.document import KnowledgeDocument
@@ -71,10 +72,13 @@ async def knowledge_search_handler(
         }
 
     # 异常直接抛出，由 Executor 捕获并转为 ToolResult.failure
-    chunks = retrieve(
-        question=question,
-        user_id=user_id,
-        kb_id=kb_id,
+    # Agent 工具运行在异步链路中，检索仍要交给独立线程池执行。
+    chunks = await run_retrieval_sync(
+        retrieve,
+        question,
+        user_id,
+        kb_id,
+        operation=f"agent_knowledge_search(kb_id={kb_id})",
     )
 
     if not chunks:

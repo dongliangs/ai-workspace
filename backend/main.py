@@ -16,7 +16,9 @@ from api.agent import router as agent_router
 from api.knowledge_base import router as knowledge_base_router
 from api.document import router as document_router
 from api.knowledge_chat import router as knowledge_chat_router
+from api.generation import router as generation_router
 from agent.bootstrap import register_all_tools
+from core.async_execution import shutdown_executors
 #导入数据库engine
 from db.session import engine
 
@@ -47,7 +49,11 @@ async def lifespan(app: FastAPI):
     # V0.3: 初始化 Milvus-lite collection
     from knowledge.vector_store import init_collection
     init_collection()
-    yield
+    try:
+        yield
+    finally:
+        # 关闭应用时释放 RAG 线程池，避免后台线程继续持有资源。
+        shutdown_executors()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -61,6 +67,7 @@ app.include_router(agent_router, prefix="/api")
 app.include_router(knowledge_base_router, prefix="/api")
 app.include_router(document_router, prefix="/api")
 app.include_router(knowledge_chat_router, prefix="/api")
+app.include_router(generation_router, prefix="/api")
 
 #统一处理HttpException
 @app.exception_handler(HTTPException)
@@ -119,6 +126,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # SSE 响应头中的生成 ID 需要显式暴露给浏览器 JavaScript，
+    # 否则前端无法通过 response.headers 读取，只能依赖 start 事件兜底。
+    expose_headers=["X-Generation-ID"],
 )
 
 if __name__ == "__main__":

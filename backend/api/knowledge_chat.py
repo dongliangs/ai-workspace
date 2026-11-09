@@ -13,7 +13,6 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +28,8 @@ from services.knowledge_service import (
     resolve_knowledge_conversation,
 )
 from services.rag_service import rag_chat_stream, _sse
+from services.generation_manager import create_generation
+from api.sse import GenerationStreamingResponse
 
 router = APIRouter(tags=["knowledge-chat"])
 
@@ -78,17 +79,16 @@ async def knowledge_chat(
     )
     await db.commit()
 
+    generation = create_generation(current_user.id, conversation_id)
+
     # 4. SSE 流式返回
-    return StreamingResponse(
+    return GenerationStreamingResponse(
         rag_chat_stream(
             question=data.question,
             user_id=current_user.id,
             kb_id=kb_id,
             conversation_id=conversation_id,
+            generation=generation,
         ),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
+        generation=generation,
     )

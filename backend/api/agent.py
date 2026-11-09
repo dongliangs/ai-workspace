@@ -15,7 +15,6 @@ Agent 消息入口（V0.2 设计文档 §13 新增接口）。
 ===========================================================================
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +29,9 @@ from schemas.agent import AgentMessageCreate
 from services.agent_service import stream_agent_response
 from services.knowledge_service import get_knowledge_base
 from services.file_service import associate_files_with_message
+from services.generation_manager import create_generation
 from datetime import datetime
+from api.sse import GenerationStreamingResponse
 
 router = APIRouter(
     prefix="/agent",
@@ -164,16 +165,15 @@ async def create_agent_message(
     # 添加当前用户消息
     context.add_user_message(message_data.content)
 
+    generation = create_generation(current_user.id, conversation_id)
+
     # 5. 流式返回 Agent 执行事件
-    return StreamingResponse(
+    return GenerationStreamingResponse(
         stream_agent_response(
             conversation_id=conversation_id,
             context=context,
+            generation=generation,
             tool_names=message_data.tools,
         ),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
+        generation=generation,
     )

@@ -3,6 +3,7 @@
 #
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 # Setting 是整个项目的配置类。
 #
@@ -50,6 +51,12 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 5
     # 相似度阈值（低于此分数的结果被过滤）
     retrieval_score_threshold: float = 0.3
+    # 同步索引任务的独立并发数与超时时间（单位：秒）
+    rag_index_concurrency: int = Field(default=1, ge=1)
+    rag_index_timeout_seconds: float = Field(default=300.0, gt=0)
+    # 同步检索任务的独立并发数与超时时间（单位：秒）
+    rag_retrieval_concurrency: int = Field(default=2, ge=1)
+    rag_retrieval_timeout_seconds: float = Field(default=30.0, gt=0)
 
     model_config = SettingsConfigDict(
         env_file=".env",

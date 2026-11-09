@@ -190,7 +190,7 @@ class TestAgentRuntimeWithTools:
         assert events[-1]["type"] == "text"
 
     async def test_llm_error(self, echo_definition, echo_handler):
-        """LLM 调用失败：推送错误文本，结束循环"""
+        """LLM 调用失败：推送结构化 error 事件，结束循环"""
         reg = ToolRegistry()
         reg.register(echo_definition, echo_handler)
         runtime = AgentRuntime(reg)
@@ -203,8 +203,8 @@ class TestAgentRuntimeWithTools:
             events = [e async for e in runtime.run(ctx)]
 
         assert events[0] == {"type": "agent_start"}
-        assert events[1]["type"] == "text"
-        assert "AI 服务" in events[1]["content"]
+        assert events[1]["type"] == "error"
+        assert "AI 服务" in events[1]["message"]
         assert len(events) == 2  # 结束
 
     async def test_max_iterations(self, echo_definition, echo_handler):

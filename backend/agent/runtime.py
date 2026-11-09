@@ -25,6 +25,7 @@ ReAct (Reason + Act) 模式：
 无工具时退化为普通对话：LLM 直接返回文本，不产生 tool 事件。
 ===========================================================================
 """
+import asyncio
 import json
 import logging
 from typing import Any, AsyncGenerator
@@ -104,6 +105,7 @@ class AgentRuntime:
         self,
         context: AgentContext,
         tool_names: list[str] | None = None,
+        cancel_event: asyncio.Event | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         运行 ReAct 循环。
@@ -111,6 +113,7 @@ class AgentRuntime:
         Args:
             context:    Agent 上下文（已含 system prompt、历史、用户消息）
             tool_names: 可选，限制本次可用工具子集；None=全部已注册工具
+            cancel_event: 用户停止生成信号，在一个事件边界检查
 
         Yields:
             SSE 事件 dict:
@@ -129,12 +132,22 @@ class AgentRuntime:
         for iteration in range(MAX_ITERATIONS):
             logger.info("ReAct 第 %d 轮 (Thought)", iteration + 1)
 
+            if cancel_event is not None and cancel_event.is_set():
+                yield {"type": "generation_cancelled"}
+                return
+
             # ---- 1. THOUGHT: 流式调用 LLM ----
             # 文本增量边生成边推送；tool_calls 以增量碎片形式返回，按 index 拼装
             text_parts: list[str] = []
             pending_calls: dict[int, dict[str, str]] = {}
+            llm_stream = None
             try:
-                async for evt in chat_with_tools_stream(context.messages, tool_defs):
+                llm_stream = chat_with_tools_stream(context.messages, tool_defs)
+                async for evt in llm_stream:
+                    # 协作式取消：在 token 或 tool_call 增量之间检查停止信号。
+                    if cancel_event is not None and cancel_event.is_set():
+                        yield {"type": "generation_cancelled"}
+                        return
                     if evt["type"] == "text":
                         text_parts.append(evt["content"])
                         yield {"type": "text", "content": evt["content"]}
@@ -152,10 +165,24 @@ class AgentRuntime:
                         acc["name"] += evt["name"]
                     if evt.get("arguments"):
                         acc["arguments"] += evt["arguments"]
-            except Exception as e:
+            except Exception:
                 logger.exception("LLM 调用失败")
-                yield {"type": "text", "content": f"Agent 调用 AI 服务时出错: {e}"}
+                # 不把上游异常原文、URL 或鉴权信息返回给前端。超时、重试
+                # 和熔断的详细原因已经记录在 llm_service 的日志中。
+                yield {
+                    "type": "error",
+                    "message": "AI 服务暂时不可用，请稍后重试",
+                }
                 return
+            finally:
+                # 停止生成或正常结束时关闭上游 LLM 网络流。
+                if llm_stream is not None:
+                    try:
+                        await llm_stream.aclose()
+                    except Exception:
+                        # 关闭失败只记录日志，不能覆盖本轮真正的生成结果
+                        # 或取消原因。
+                        logger.exception("关闭 Agent LLM 流失败")
 
             content = "".join(text_parts) or None
 
@@ -189,6 +216,10 @@ class AgentRuntime:
 
             # ---- 4. ACTION + OBSERVATION: 执行每个工具 ----
             for tc in tool_calls:
+                if cancel_event is not None and cancel_event.is_set():
+                    yield {"type": "generation_cancelled"}
+                    return
+
                 tool_name = tc["name"]
 
                 # 解析 LLM 生成的参数

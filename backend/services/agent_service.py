@@ -16,6 +16,7 @@ Agent Service —— Agent 执行编排层。
     - Agent 通过 Agent Loop 循环调用 LLM + Tools，推送多类型事件
 ===========================================================================
 """
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -30,6 +31,14 @@ from db.session import AsyncSessionLocal
 from models.conversation import Conversation
 from models.message import Message, MessageRole
 from services.file_service import associate_files_with_message
+from services.generation_manager import (
+    GenerationHandle,
+    get_generation_cancel_reason,
+    is_generation_finished,
+    mark_generation_finished,
+    remove_generation,
+    request_generation_cancel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +51,7 @@ def _sse(payload: dict) -> bytes:
 async def stream_agent_response(
     conversation_id: int,
     context: AgentContext,
+    generation: GenerationHandle,
     tool_names: list[str] | None = None,
 ) -> AsyncGenerator[bytes, None]:
     """
@@ -55,32 +65,196 @@ async def stream_agent_response(
 
     使用独立的 DB 会话保存消息，避免与请求级 Depends(get_db) 生命周期冲突。
     """
-    runtime = AgentRuntime()
     full_content: list[str] = []
     tool_results_data: list[dict] = []
+    message_id: int | None = None
 
     try:
-        async for event in runtime.run(context, tool_names):
-            if event["type"] == "text":
-                full_content.append(event["content"])
-            elif event["type"] == "tool_result":
-                tool_results_data.append({
-                    "tool": event.get("tool"),
-                    "status": event.get("status"),
-                    "result": event.get("result"),
-                })
-            yield _sse(event)
-    except Exception as e:
-        logger.exception("Agent 执行异常")
-        yield _sse({"type": "error", "message": f"Agent 执行失败: {e}"})
-        return
+        runtime = AgentRuntime()
+        cancelled = False
 
-    # 流结束，保存完整 AI 消息（含工具结果）并更新会话时间
+        try:
+            async for event in runtime.run(
+                context,
+                tool_names,
+                generation.cancel_event,
+            ):
+                if event["type"] == "generation_cancelled":
+                    # 取消事件由 service 统一持久化后再发送，避免重复通知。
+                    cancelled = True
+                    break
+
+                if event["type"] == "agent_start":
+                    event = {
+                        **event,
+                        "generation_id": generation.generation_id,
+                        "conversation_id": conversation_id,
+                    }
+
+                if event["type"] == "text":
+                    full_content.append(event["content"])
+                elif event["type"] == "tool_result":
+                    tool_results_data.append({
+                        "tool": event.get("tool"),
+                        "status": event.get("status"),
+                        "result": event.get("result"),
+                    })
+                elif event["type"] == "error":
+                    # AgentRuntime 在 LLM 超时、重试耗尽或熔断时返回 error。
+                    # 如果此前已经输出过文本或执行过工具，先保留部分结果，
+                    # 再把错误帧发给前端，避免历史记录里出现一条“成功”消息。
+                    content = "".join(full_content)
+                    if content or tool_results_data:
+                        persisted_results = list(tool_results_data)
+                        persisted_results.append({
+                            "type": "generation_cancelled",
+                            "reason": "llm_error",
+                        })
+                        try:
+                            message_id = await _persist_agent_message(
+                                conversation_id,
+                                content,
+                                persisted_results,
+                            )
+                        except Exception:
+                            logger.exception(
+                                "保存 Agent LLM 中断结果失败 generation_id=%s",
+                                generation.generation_id,
+                            )
+                    mark_generation_finished(generation)
+                    yield _sse({
+                        **event,
+                        "generation_id": generation.generation_id,
+                        "conversation_id": conversation_id,
+                    })
+                    return
+
+                yield _sse(event)
+        except Exception:
+            logger.exception("Agent 执行异常")
+            content = "".join(full_content)
+            if content or tool_results_data:
+                persisted_results = list(tool_results_data)
+                persisted_results.append({
+                    "type": "generation_cancelled",
+                    "reason": "agent_error",
+                })
+                try:
+                    message_id = await _persist_agent_message(
+                        conversation_id,
+                        content,
+                        persisted_results,
+                    )
+                except Exception:
+                    logger.exception(
+                        "保存 Agent 异常前结果失败 generation_id=%s",
+                        generation.generation_id,
+                    )
+            mark_generation_finished(generation)
+            # 不向前端暴露内部异常文本。
+            yield _sse({"type": "error", "message": "Agent 执行失败"})
+            return
+
+        content = "".join(full_content)
+        if cancelled:
+            reason = get_generation_cancel_reason(generation) or "user"
+            persisted_results = list(tool_results_data)
+            persisted_results.append({
+                "type": "generation_cancelled",
+                "reason": reason,
+            })
+            if content or tool_results_data:
+                try:
+                    message_id = await _persist_agent_message(
+                        conversation_id,
+                        content,
+                        persisted_results,
+                    )
+                except Exception:
+                    logger.exception(
+                        "保存 Agent 取消前结果失败 generation_id=%s",
+                        generation.generation_id,
+                    )
+            mark_generation_finished(generation)
+            yield _sse({
+                "type": "cancelled",
+                "generation_id": generation.generation_id,
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+            })
+            return
+
+        # 流正常结束，保存完整 AI 消息和工具结果。
+        try:
+            message_id = await _persist_agent_message(
+                conversation_id,
+                content,
+                tool_results_data,
+            )
+        except Exception:
+            logger.exception(
+                "保存 Agent 回答失败 generation_id=%s",
+                generation.generation_id,
+            )
+            mark_generation_finished(generation)
+            yield _sse({"type": "error", "message": "回答保存失败，请稍后重试"})
+            return
+
+        mark_generation_finished(generation)
+        yield _sse({
+            "type": "done",
+            "generation_id": generation.generation_id,
+            "message_id": message_id,
+            "conversation_id": conversation_id,
+            "tool_results": tool_results_data if tool_results_data else None,
+        })
+    finally:
+        # 客户端在 SSE 中途断开时，响应层会 aclose 当前生成器。这里保存
+        # 断连前已经产生的文本和工具结果，并确保活动任务被移除。
+        if not is_generation_finished(generation):
+            reason = get_generation_cancel_reason(generation)
+            if reason is None:
+                request_generation_cancel(
+                    generation,
+                    reason="client_disconnect",
+                )
+                reason = "client_disconnect"
+
+            content = "".join(full_content)
+            if (content or tool_results_data) and message_id is None:
+                persisted_results = list(tool_results_data)
+                persisted_results.append({
+                    "type": "generation_cancelled",
+                    "reason": reason,
+                })
+                try:
+                    await asyncio.shield(
+                        _persist_agent_message(
+                            conversation_id,
+                            content,
+                            persisted_results,
+                        )
+                    )
+                except Exception:
+                    logger.exception(
+                        "保存断连 Agent 部分结果失败 generation_id=%s",
+                        generation.generation_id,
+                    )
+
+        remove_generation(generation)
+
+
+async def _persist_agent_message(
+    conversation_id: int,
+    content: str,
+    tool_results_data: list[dict],
+) -> int:
+    """保存 Agent 回答和工具执行结果，并返回消息 ID。"""
     async with AsyncSessionLocal() as sdb:
         assistant_message = Message(
             conversation_id=conversation_id,
             role=MessageRole.ASSISTANT,
-            content="".join(full_content),
+            content=content,
             tool_results=tool_results_data if tool_results_data else None,
         )
         sdb.add(assistant_message)
@@ -91,11 +265,4 @@ async def stream_agent_response(
         )
         await sdb.commit()
         await sdb.refresh(assistant_message)
-        message_id = assistant_message.id
-
-    yield _sse({
-        "type": "done",
-        "message_id": message_id,
-        "conversation_id": conversation_id,
-        "tool_results": tool_results_data if tool_results_data else None,
-    })
+        return assistant_message.id
