@@ -13,6 +13,7 @@ LangChain VectorStore 接口：
 ===========================================================================
 """
 import logging
+import threading
 from typing import Any
 
 from langchain_core.documents import Document
@@ -26,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 _vector_store: Milvus | None = None
 _pymilvus_client: MilvusClient | None = None
+# 这两个客户端都可能被线程池并发初始化，需要分别加锁。
+_vector_store_lock = threading.Lock()
+_pymilvus_client_lock = threading.Lock()
 
 
 class _LazyEmbeddings:
@@ -48,18 +52,24 @@ def get_vector_store() -> Milvus:
     """获取 LangChain Milvus VectorStore 单例。"""
     global _vector_store
     if _vector_store is None:
-        logger.info("初始化 LangChain Milvus, db=%s", settings.milvus_db_path)
-        _vector_store = Milvus(
-            embedding_function=_LazyEmbeddings(),
-            collection_name=settings.milvus_collection_name,
-            connection_args={"uri": settings.milvus_db_path},
-            auto_id=True,
-            index_params={
-                "metric_type": "IP",
-                "index_type": "FLAT",
-            },
-        )
-        logger.info("LangChain Milvus VectorStore 初始化完成")
+        # 双检锁确保并发请求只会创建一个 Milvus VectorStore。
+        with _vector_store_lock:
+            if _vector_store is None:
+                logger.info(
+                    "初始化 LangChain Milvus, db=%s",
+                    settings.milvus_db_path,
+                )
+                _vector_store = Milvus(
+                    embedding_function=_LazyEmbeddings(),
+                    collection_name=settings.milvus_collection_name,
+                    connection_args={"uri": settings.milvus_db_path},
+                    auto_id=True,
+                    index_params={
+                        "metric_type": "IP",
+                        "index_type": "FLAT",
+                    },
+                )
+                logger.info("LangChain Milvus VectorStore 初始化完成")
     return _vector_store
 
 
@@ -67,7 +77,10 @@ def _get_pymilvus_client() -> MilvusClient:
     """获取 pymilvus 客户端单例（用于 expr 删除操作）。"""
     global _pymilvus_client
     if _pymilvus_client is None:
-        _pymilvus_client = MilvusClient(settings.milvus_db_path)
+        # 删除操作也可能并发触发，避免重复创建底层客户端。
+        with _pymilvus_client_lock:
+            if _pymilvus_client is None:
+                _pymilvus_client = MilvusClient(settings.milvus_db_path)
     return _pymilvus_client
 
 

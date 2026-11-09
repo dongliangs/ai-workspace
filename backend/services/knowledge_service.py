@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.knowledge_base import KnowledgeBase, KnowledgeBaseStatus
 from models.conversation import Conversation, ConversationType
 from models.document import KnowledgeDocument, DocumentStatus
+from core.async_execution import run_index_sync
 from knowledge.vector_store import delete_by_knowledge_base
 
 logger = logging.getLogger(__name__)
@@ -137,9 +138,14 @@ async def delete_knowledge_base(
 
     # 2. 删除向量（在 try 中执行，失败不阻塞数据库删除）
     try:
-        delete_by_knowledge_base(kb_id)
-    except Exception as e:
-        logger.error("删除知识库向量失败 kb_id=%d: %s", kb_id, e)
+        # Milvus 批量删除是同步操作，移出事件循环后再处理数据库删除。
+        await run_index_sync(
+            delete_by_knowledge_base,
+            kb_id,
+            operation=f"delete_vectors(kb_id={kb_id})",
+        )
+    except Exception:
+        logger.exception("删除知识库向量失败 kb_id=%d", kb_id)
 
     # 3. 删除关联文档记录
     await db.execute(

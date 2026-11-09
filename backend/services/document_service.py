@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.document import KnowledgeDocument, DocumentStatus
 from models.knowledge_base import KnowledgeBase
 from models.file import File
+from core.async_execution import run_index_sync
 from knowledge.loaders import load_document
 from knowledge.chunker import split_documents
 from knowledge.vector_store import add_documents, delete_by_document
@@ -68,10 +69,10 @@ async def create_and_index(
     # 2. 构建索引；失败则置为 failed（不计入知识库文档数量）
     try:
         await _build_index(db, doc, file_record.storage_path)
-    except Exception as e:
-        logger.error("文档索引失败 doc_id=%d: %s", doc.id, e)
+    except Exception:
+        logger.exception("文档索引失败 doc_id=%d", doc.id)
         doc.status = DocumentStatus.FAILED
-        doc.error_message = str(e)[:500]
+        doc.error_message = "文档索引失败，请查看服务日志"
         await db.commit()
         await db.refresh(doc)
         return doc
@@ -104,9 +105,14 @@ async def retry_index(
 
     # 1. 清理残留向量（失败前可能已部分写入）
     try:
-        delete_by_document(doc_id)
-    except Exception as e:
-        logger.warning("重试前清理旧向量失败 doc_id=%d: %s", doc_id, e)
+        # Milvus 删除是同步阻塞调用，放到索引线程池执行。
+        await run_index_sync(
+            delete_by_document,
+            doc_id,
+            operation=f"delete_vectors(document_id={doc_id})",
+        )
+    except Exception:
+        logger.exception("重试前清理旧向量失败 doc_id=%d", doc_id)
 
     # 2. 状态回到 processing，清空旧错误信息
     doc.status = DocumentStatus.PROCESSING
@@ -118,10 +124,10 @@ async def retry_index(
     file_record = await db.get(File, doc.file_id)
     try:
         await _build_index(db, doc, file_record.storage_path)
-    except Exception as e:
-        logger.error("重试索引失败 doc_id=%d: %s", doc.id, e)
+    except Exception:
+        logger.exception("重试索引失败 doc_id=%d", doc.id)
         doc.status = DocumentStatus.FAILED
-        doc.error_message = str(e)[:500]
+        doc.error_message = "文档索引失败，请查看服务日志"
         await db.commit()
         await db.refresh(doc)
         return doc
@@ -147,13 +153,24 @@ async def _build_index(
         raise FileNotFoundError(f"文件不存在: {storage_path}")
 
     # 1. LangChain Loader 加载文档
-    docs = load_document(file_path, doc.file_type)
+    # PDF/DOCX/TXT 解析是同步 CPU/文件操作，不能直接占用事件循环。
+    docs = await run_index_sync(
+        load_document,
+        file_path,
+        doc.file_type,
+        operation=f"load_document(document_id={doc.id})",
+    )
     if not docs:
         raise ValueError("文件内容为空或无法解析")
     logger.info("文档加载完成 doc_id=%d, %d 个文档", doc.id, len(docs))
 
     # 2. LangChain Text Splitter 切分
-    chunks = split_documents(docs)
+    # tiktoken 分块同样属于同步 CPU 操作，统一交给索引线程池。
+    chunks = await run_index_sync(
+        split_documents,
+        docs,
+        operation=f"split_documents(document_id={doc.id})",
+    )
     if not chunks:
         raise ValueError("切分结果为空")
     logger.info("文档切分完成 doc_id=%d, %d chunks", doc.id, len(chunks))
@@ -165,7 +182,12 @@ async def _build_index(
         chunk.metadata["document_id"] = doc.id
 
     # 4. LangChain VectorStore 写入（自动向量化 + 写入 Milvus）
-    written = add_documents(chunks)
+    # 这里会触发本地 Embedding 推理和 Milvus 写入，是索引链路中最耗时的阶段。
+    written = await run_index_sync(
+        add_documents,
+        chunks,
+        operation=f"add_documents(document_id={doc.id})",
+    )
     logger.info("向量写入完成 doc_id=%d, %d 条", doc.id, written)
 
     # 5. 更新状态
@@ -232,9 +254,14 @@ async def delete_document(
 
     # 清理向量
     try:
-        delete_by_document(doc_id)
-    except Exception as e:
-        logger.error("删除文档向量失败 doc_id=%d: %s", doc_id, e)
+        # 删除向量时也复用索引线程池，避免同步 Milvus 调用阻塞事件循环。
+        await run_index_sync(
+            delete_by_document,
+            doc_id,
+            operation=f"delete_vectors(document_id={doc_id})",
+        )
+    except Exception:
+        logger.exception("删除文档向量失败 doc_id=%d", doc_id)
 
     # 删除文档记录，并重算知识库文档计数
     await db.delete(doc)

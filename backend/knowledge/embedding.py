@@ -17,6 +17,7 @@ LangChain Embeddings 接口：
 """
 import logging
 import os
+import threading
 
 # 国内访问 huggingface.co 不通，默认走 hf-mirror.com 镜像。
 # 必须在 import langchain_huggingface（其内部读 HF_ENDPOINT）之前设置。
@@ -36,6 +37,8 @@ logger = logging.getLogger(__name__)
 # ── LangChain Embeddings 单例 ──────────────────────────────
 
 _embeddings: HuggingFaceEmbeddings | None = None
+# 线程池中的并发请求可能同时首次加载模型，使用锁保证只初始化一次。
+_embeddings_lock = threading.Lock()
 
 
 def get_embeddings() -> HuggingFaceEmbeddings:
@@ -47,15 +50,21 @@ def get_embeddings() -> HuggingFaceEmbeddings:
     """
     global _embeddings
     if _embeddings is None:
-        logger.info("加载 Embedding 模型 (LangChain): %s", settings.embedding_model_name)
-        _embeddings = HuggingFaceEmbeddings(
-            model_name=settings.embedding_model_name,
-            model_kwargs={"device": "cpu"},  # V0.3 先用 CPU，有 GPU 可改为 "cuda"
-            encode_kwargs={"normalize_embeddings": True},  # L2 归一化
-        )
-        logger.info(
-            "Embedding 模型加载完成, 维度=%d", settings.embedding_dim
-        )
+        # 双检锁：第一次判断避免每次调用都加锁，第二次判断防止并发重复加载。
+        with _embeddings_lock:
+            if _embeddings is None:
+                logger.info(
+                    "加载 Embedding 模型 (LangChain): %s",
+                    settings.embedding_model_name,
+                )
+                _embeddings = HuggingFaceEmbeddings(
+                    model_name=settings.embedding_model_name,
+                    model_kwargs={"device": "cpu"},
+                    encode_kwargs={"normalize_embeddings": True},
+                )
+                logger.info(
+                    "Embedding 模型加载完成, 维度=%d", settings.embedding_dim
+                )
     return _embeddings
 
 
